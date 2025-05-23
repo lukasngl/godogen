@@ -158,8 +158,6 @@ func (file *File) Visit(node ast.Node) (w ast.Visitor) {
 				return file
 
 			case "step", "given", "when", "then":
-				[]byte(directive)[0] = directive[0] + byte('a'-'A')
-
 				if len(parts) == 1 {
 					log.Printf("WARN step %q at %s is missing the pattern",
 						funname, file.fset.Position(comment.Pos()),
@@ -176,7 +174,7 @@ func (file *File) Visit(node ast.Node) (w ast.Visitor) {
 				}
 
 				file.Steps = append(file.Steps, Step{
-					Type:     directive,
+					Type:     strcase.ToCamel(directive),
 					Pattern:  pattern,
 					Function: funname,
 				})
