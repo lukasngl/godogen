@@ -119,48 +119,56 @@ func (file *File) Visit(node ast.Node) (w ast.Visitor) {
 		funname := node.Name.Name
 
 		for _, comment := range node.Doc.List {
-			if comment.Text == "//godogen:before" {
-				file.Before = append(file.Before, funname)
-				break
-			}
-
-			if comment.Text == "//godogen:after" {
-				file.After = append(file.After, funname)
-				break
-			}
-
-			pattern, isStep := strings.CutPrefix(comment.Text, "//godogen:step ")
-			if !isStep {
+			directive, isDirective := strings.CutPrefix(comment.Text, "//godogen:")
+			if !isDirective {
 				continue
 			}
 
-			_, err := regexp.Compile(pattern)
-			if err != nil {
-				log.Printf("WARN step %q at %s has invalid regex: %v",
-					funname, file.fset.Position(comment.Pos()), err,
-				)
-			}
+			parts := strings.SplitN(directive, " ", 2)
+			directive = parts[0]
 
-			file.Steps = append(file.Steps, Step{
-				Type:     stepTypeFrom(funname),
-				Pattern:  pattern,
-				Function: funname,
-			})
+			switch directive {
+			case "before":
+				file.Before = append(file.Before, funname)
+				return file
+
+			case "after":
+				file.After = append(file.After, funname)
+				return file
+
+			case "step", "given", "when", "then":
+				[]byte(directive)[0] = directive[0] + byte('a'-'A')
+
+				if len(parts) == 1 {
+					log.Printf("WARN step %q at %s is missing the pattern",
+						funname, file.fset.Position(comment.Pos()),
+					)
+				}
+
+				pattern := parts[0]
+
+				_, err := regexp.Compile(pattern)
+				if err != nil {
+					log.Printf("WARN step %q at %s has invalid regex: %v",
+						funname, file.fset.Position(comment.Pos()), err,
+					)
+				}
+
+				file.Steps = append(file.Steps, Step{
+					Type:     directive,
+					Pattern:  pattern,
+					Function: funname,
+				})
+
+			default:
+				log.Printf("WARN decl %q at %s has unknown directive %q",
+					funname, file.fset.Position(comment.Pos()), directive,
+				)
+
+				return file
+			}
 		}
 	}
 
 	return file
-}
-
-func stepTypeFrom(funcName string) string {
-	switch {
-	case strings.HasPrefix(funcName, "given"):
-		return "Given"
-	case strings.HasPrefix(funcName, "when"):
-		return "When"
-	case strings.HasPrefix(funcName, "then"):
-		return "Then"
-	default:
-		return "Step"
-	}
 }
