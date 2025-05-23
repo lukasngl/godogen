@@ -41,9 +41,11 @@ func Initialize{{.Name}}(ctx *godog.ScenarioContext) {
 }
 `
 
+var tmpl = template.Must(template.New("").Parse(initializerTpl))
+
 var (
-	input         = flag.String("input", "./", "input file of package")
-	outputPatterr = flag.String("suffix", "_initialize.go", "suffix to append to input filename")
+	input        = flag.String("input", "./", "input file of package")
+	outputSuffix = flag.String("suffix", "_initialize.go", "suffix to append to input filename")
 )
 
 type (
@@ -68,42 +70,61 @@ type (
 func main() {
 	fset := token.NewFileSet()
 
-	tmpl := template.Must(template.New("").Parse(initializerTpl))
+	if strings.HasSuffix(*input, ".go") {
+		goFile, err := parser.ParseFile(fset, *input, nil, parser.ParseComments)
+		if err != nil {
+			log.Fatalf("failed to parse lol")
+		}
 
-	pkgs, err := parser.ParseDir(fset, "./", nil, parser.ParseComments)
-	if err != nil {
-		log.Fatalf("failed to parse lol")
-	}
+		err = genFile(fset, *input, goFile)
+		if err != nil {
+			log.Fatalf("failed to generate initializer for %q: %v", *input, err)
+		}
+	} else {
+		pkgs, err := parser.ParseDir(fset, *input, nil, parser.ParseComments)
+		if err != nil {
+			log.Fatalf("failed to parse lol")
+		}
 
-	for pkgname, pkg := range pkgs {
-		for filenpath, goFile := range pkg.Files {
-			slug := filepath.Base(filenpath)
-			slug = strings.TrimSuffix(slug, ".go")
-
-			file := &File{
-				Filepath: filenpath,
-				Package:  pkgname,
-				Name:     strcase.ToCamel(slug),
-				fset:     fset,
-			}
-
-			ast.Walk(file, goFile)
-
-			if len(file.Steps)+len(file.After)+len(file.Before) == 0 {
-				continue
-			}
-
-			outfile, err := os.Create(slug + "_initialize.go")
-			if err != nil {
-				log.Fatalf("%s: failed to open output file: %v", filenpath, err)
-			}
-
-			err = tmpl.Execute(outfile, file)
-			if err != nil {
-				log.Fatalf("%s: failed to render template: %v", filenpath, err)
+		for _, pkg := range pkgs {
+			for filenpath, goFile := range pkg.Files {
+				err = genFile(fset, filenpath, goFile)
+				if err != nil {
+					log.Fatalf("failed to generate initializer for %q: %v", *input, err)
+				}
 			}
 		}
 	}
+}
+
+func genFile(fset *token.FileSet, filenpath string, goFile *ast.File) error {
+	slug := filepath.Base(filenpath)
+	slug = strings.TrimSuffix(slug, ".go")
+
+	file := &File{
+		Filepath: filenpath,
+		Package:  goFile.Name.Name,
+		Name:     strcase.ToCamel(slug),
+		fset:     fset,
+	}
+
+	ast.Walk(file, goFile)
+
+	if len(file.Steps)+len(file.After)+len(file.Before) == 0 {
+		return nil
+	}
+
+	outfile, err := os.Create(slug + *outputSuffix)
+	if err != nil {
+		log.Fatalf("%s: failed to open output file: %v", filenpath, err)
+	}
+
+	err = tmpl.Execute(outfile, file)
+	if err != nil {
+		log.Fatalf("%s: failed to render template: %v", filenpath, err)
+	}
+
+	return nil
 }
 
 // Visit implements ast.Visitor.
