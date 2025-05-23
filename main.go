@@ -164,7 +164,7 @@ func (file *File) Visit(node ast.Node) (w ast.Visitor) {
 					)
 				}
 
-				pattern := parts[0]
+				pattern := parts[1]
 
 				_, err := regexp.Compile(pattern)
 				if err != nil {
