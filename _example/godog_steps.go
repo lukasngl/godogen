@@ -12,7 +12,7 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 }
 
 //godogen:given there are (\d+) godogs
-func thereAreGodogs(ctx context.Context, available int) {
+func thereAreGodogs(ctx context.Context, available int) error {
 	return godog.ErrPending
 }
 
