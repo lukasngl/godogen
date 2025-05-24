@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -29,14 +30,8 @@ func Initialize{{.Name}}(ctx *godog.ScenarioContext) {
 	//
 	// Note: there must be no space between the "//" and the "godogen:step",
 	// see "directive comment" in https://tip.golang.org/doc/comment#syntax
-{{- range .Before }}
-	ctx.Before({{.}})
-{{- end }}
-{{- range .After }}
-	ctx.After({{.}})
-{{- end }}
 {{- range .Steps }}
-	ctx.{{.Type}}(` + "`{{.Pattern}}`" + `, {{.Function}})
+	ctx.{{.Type}}({{with .Pattern}}` + "`{{.}}`" + `, {{end}}{{.Function}})
 {{- end }}
 }
 `
@@ -50,17 +45,16 @@ var (
 
 type (
 	File struct {
-		Filepath      string
-		Package       string
-		Name          string
-		Steps         []Step
-		Before, After []string
+		Filepath string
+		Package  string
+		Name     string
+		Steps    []Step
 
 		// To lookup token locations
 		fset *token.FileSet
 	}
 	Step struct {
-		// One of "Step", "Given", "When", or "Then"
+		// One of "Step", "Given", "When", "Then", "Before", or "After"
 		Type     string
 		Pattern  string
 		Function string
@@ -110,7 +104,7 @@ func genFile(fset *token.FileSet, filenpath string, goFile *ast.File) error {
 
 	ast.Walk(file, goFile)
 
-	if len(file.Steps)+len(file.After)+len(file.Before) == 0 {
+	if len(file.Steps) == 0 {
 		return nil
 	}
 
@@ -140,6 +134,8 @@ func (file *File) Visit(node ast.Node) (w ast.Visitor) {
 		funname := node.Name.Name
 
 		for _, comment := range node.Doc.List {
+			position := file.fset.Position(comment.Pos())
+
 			directive, isDirective := strings.CutPrefix(comment.Text, "//godogen:")
 			if !isDirective {
 				continue
@@ -148,29 +144,25 @@ func (file *File) Visit(node ast.Node) (w ast.Visitor) {
 			parts := strings.SplitN(directive, " ", 2)
 			directive = parts[0]
 
+			pattern := ""
+			if len(parts) > 1 {
+				pattern = parts[1]
+			}
+
 			switch directive {
-			case "before":
-				file.Before = append(file.Before, funname)
-				return file
+			case "before", "after", "step", "given", "when", "then":
+				fmt.Printf("%s definition found: %q: %s\n", directive, funname, pattern)
 
-			case "after":
-				file.After = append(file.After, funname)
-				return file
+				if directive != "before" && directive != "after" {
+					if pattern == "" {
+						log.Printf("WARN step %q at %s is missing the pattern", funname, position)
+						return
+					}
 
-			case "step", "given", "when", "then":
-				if len(parts) == 1 {
-					log.Printf("WARN step %q at %s is missing the pattern",
-						funname, file.fset.Position(comment.Pos()),
-					)
-				}
-
-				pattern := parts[1]
-
-				_, err := regexp.Compile(pattern)
-				if err != nil {
-					log.Printf("WARN step %q at %s has invalid regex: %v",
-						funname, file.fset.Position(comment.Pos()), err,
-					)
+					_, err := regexp.Compile(pattern)
+					if err != nil {
+						log.Printf("WARN step %q at %s has invalid regex: %v", funname, position, err)
+					}
 				}
 
 				file.Steps = append(file.Steps, Step{
@@ -181,10 +173,8 @@ func (file *File) Visit(node ast.Node) (w ast.Visitor) {
 
 			default:
 				log.Printf("WARN decl %q at %s has unknown directive %q",
-					funname, file.fset.Position(comment.Pos()), directive,
+					funname, position, directive,
 				)
-
-				return file
 			}
 		}
 	}

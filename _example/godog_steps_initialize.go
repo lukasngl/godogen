@@ -11,9 +11,9 @@ func InitializeGodogSteps(ctx *godog.ScenarioContext) {
 	//
 	// Note: there must be no space between the "//" and the "godogen:step",
 	// see "directive comment" in https://tip.golang.org/doc/comment#syntax
+	ctx.Given(thereAreGodogs)
+	ctx.When(iEat)
+	ctx.Then(thereShouldBeRemaining)
+	ctx.Step(thereShouldBeNoneRemaining)
 	ctx.Before(resetGodogs)
-	ctx.Step(`there are (\d+) godogs`, thereAreGodogs)
-	ctx.Step(`^I eat (\d+)$`, iEat)
-	ctx.Step(`^there should be (\d+) remaining$`, thereShouldBeRemaining)
-	ctx.Step(`^there should be none remaining$`, thereShouldBeNoneRemaining)
 }
