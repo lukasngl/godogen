@@ -31,12 +31,14 @@ func Initialize{{.Name}}(ctx *godog.ScenarioContext) {
 	// Note: there must be no space between the "//" and the "godogen:step",
 	// see "directive comment" in https://tip.golang.org/doc/comment#syntax
 {{- range .Steps }}
-	ctx.{{.Type}}({{with .Pattern}}` + "`{{.}}`" + `, {{end}}{{.Function}})
+	ctx.{{.Type}}({{with .Pattern}}` + "`{{escapeBackticks .}}`" + `, {{end}}{{.Function}})
 {{- end }}
 }
 `
 
-var tmpl = template.Must(template.New("").Parse(initializerTpl))
+var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
+	"escapeBackticks": escapeBackticks,
+}).Parse(initializerTpl))
 
 var (
 	input        = flag.String("input", "./", "input file of package")
@@ -62,6 +64,8 @@ type (
 )
 
 func main() {
+	flag.Parse()
+
 	fset := token.NewFileSet()
 
 	if strings.HasSuffix(*input, ".go") {
@@ -313,4 +317,12 @@ func isSelExpr(param ast.Expr, expectedPkg, expectedSel string) bool {
 	}
 
 	return pkg.Name == expectedPkg
+}
+
+func escapeBackticks(s string) string {
+	if !strings.Contains(s, "`") {
+		return s
+	}
+
+	return strings.ReplaceAll(s, "`", "`+\"`\"+`")
 }
