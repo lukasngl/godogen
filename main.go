@@ -9,11 +9,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"text/template"
 
 	"github.com/iancoleman/strcase"
+	"github.com/lukasngl/godogen/godogen"
 )
 
 // See https://go.dev/blog/generate
@@ -45,23 +45,12 @@ var (
 	outputSuffix = flag.String("suffix", "_initialize.go", "suffix to append to input filename")
 )
 
-type (
-	File struct {
-		Filepath string
-		Package  string
-		Name     string
-		Steps    []Step
-
-		// To lookup token locations
-		fset *token.FileSet
-	}
-	Step struct {
-		// One of "Step", "Given", "When", "Then", "Before", or "After"
-		Type     string
-		Pattern  string
-		Function string
-	}
-)
+type File struct {
+	Filepath string
+	Package  string
+	Name     string
+	Steps    []godogen.Step
+}
 
 func main() {
 	flag.Parse()
@@ -107,14 +96,14 @@ func genFile(fset *token.FileSet, filenpath string, goFile *ast.File) error {
 	slug := filepath.Base(filenpath)
 	slug = strings.TrimSuffix(slug, ".go")
 
+	steps := godogen.GetStepDefinitions(fset, goFile)
+
 	file := &File{
 		Filepath: filenpath,
 		Package:  goFile.Name.Name,
 		Name:     strcase.ToCamel(slug),
-		fset:     fset,
+		Steps:    steps,
 	}
-
-	ast.Walk(file, goFile)
 
 	if len(file.Steps) == 0 {
 		fmt.Printf("%s: no steps found, ignoring\n", filenpath)
@@ -134,189 +123,6 @@ func genFile(fset *token.FileSet, filenpath string, goFile *ast.File) error {
 	fmt.Printf("%s: scenario initializer successfully created\n", outfile.Name())
 
 	return nil
-}
-
-// Visit implements ast.Visitor.
-func (file *File) Visit(node ast.Node) (w ast.Visitor) {
-	switch node := node.(type) {
-	case nil:
-		return nil
-	case *ast.FuncDecl:
-		if node.Doc == nil {
-			break
-		}
-
-		funname := node.Name.Name
-
-		for _, comment := range node.Doc.List {
-			position := file.fset.Position(comment.Pos())
-
-			directive, isDirective := strings.CutPrefix(comment.Text, "//godogen:")
-			if !isDirective {
-				continue
-			}
-
-			parts := strings.SplitN(directive, " ", 2)
-			directive = parts[0]
-
-			pattern := ""
-			if len(parts) > 1 {
-				pattern = parts[1]
-			}
-
-			switch directive {
-			case "before", "after", "step", "given", "when", "then":
-				if directive != "before" && directive != "after" {
-					fmt.Printf("%s: %s definition %q found: %q\n", position, directive, funname, pattern)
-
-					err := validateStep(node, position, pattern)
-					if err != nil {
-						fmt.Printf("%s: WARN %s\n", position, err.Error())
-					}
-				} else {
-					fmt.Printf("%s: %s hook %q found\n", position, directive, funname)
-				}
-
-				file.Steps = append(file.Steps, Step{
-					Type:     strcase.ToCamel(directive),
-					Pattern:  pattern,
-					Function: funname,
-				})
-
-			default:
-				log.Printf("%s: WARN decl %q has unknown directive %q",
-					position, funname, directive,
-				)
-			}
-		}
-	}
-
-	return file
-}
-
-func validateStep(definition *ast.FuncDecl, position token.Position, pattern string) error {
-	funname := definition.Name.Name
-	if pattern == "" {
-		return fmt.Errorf("step %q at %s is missing the pattern", funname, position)
-	}
-
-	reg, err := regexp.Compile(pattern)
-	if err != nil {
-		return fmt.Errorf("step %q at %s has invalid regex: %v", funname, position, err)
-	}
-
-	expectedParams := reg.NumSubexp() // Note: this does not include (?:non capturing groups)
-	actualParams := 0
-
-	n := len(definition.Type.Params.List)
-	for i, param := range definition.Type.Params.List {
-		m := len(param.Names)
-		for j, name := range param.Names {
-			isFirst := i == 0
-			isLast := i == n-1 && j == m-1
-
-			switch {
-			case isContextParam(param.Type):
-				if !isFirst {
-					return fmt.Errorf(
-						"parameter %q: context.Context must be first parameter",
-						name,
-					)
-				}
-
-			case isAttachmentParam(param.Type):
-				if !isLast {
-					return fmt.Errorf(
-						"parameter %q: *godog.Table or *godog.DocString must be last parameter",
-						name,
-					)
-				}
-
-			case isRegularParam(param.Type):
-				actualParams++
-
-			default:
-				return fmt.Errorf("parameter %q: unexpected type", name)
-
-			}
-
-		}
-	}
-
-	if actualParams != expectedParams {
-		return fmt.Errorf(
-			"pattern has %d groups but found %d parameters",
-			expectedParams,
-			actualParams,
-		)
-	}
-
-	return nil
-}
-
-func isRegularParam(param ast.Expr) bool {
-	if isByteArray(param) {
-		return true
-	}
-
-	ident, ok := param.(*ast.Ident)
-	if !ok {
-		return false
-	}
-
-	switch ident.Name {
-	case "int", "int8", "int16", "int32", "int64",
-		"float32", "float64",
-		"string":
-		return true
-	default:
-		return false
-	}
-}
-
-func isByteArray(param ast.Expr) bool {
-	array, ok := param.(*ast.ArrayType)
-	if !ok {
-		return false
-	}
-
-	ident, ok := array.Elt.(*ast.Ident)
-	if !ok {
-		return false
-	}
-
-	return ident.Name == "byte"
-}
-
-func isContextParam(param ast.Expr) bool {
-	return isSelExpr(param, "context", "Context")
-}
-
-func isAttachmentParam(param ast.Expr) bool {
-	star, ok := param.(*ast.StarExpr)
-	if !ok {
-		return false
-	}
-
-	return isSelExpr(star.X, "godog", "Table") || isSelExpr(star.X, "godog", "DocString")
-}
-
-func isSelExpr(param ast.Expr, expectedPkg, expectedSel string) bool {
-	selEpr, ok := param.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-
-	if selEpr.Sel.Name != expectedSel {
-		return false
-	}
-
-	pkg, ok := selEpr.X.(*ast.Ident)
-	if !ok {
-		return false
-	}
-
-	return pkg.Name == expectedPkg
 }
 
 func escapeBackticks(s string) string {

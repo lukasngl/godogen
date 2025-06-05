@@ -1,0 +1,4 @@
+version: v2.1.2
+plugins:
+  - module: 'github.com/lukasngl/godgen/godgen-lint'
+    path: ../godogen-lint
