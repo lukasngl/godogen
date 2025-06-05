@@ -13,7 +13,7 @@ import (
 	"text/template"
 
 	"github.com/iancoleman/strcase"
-	"github.com/lukasngl/godogen/pkg/godogen"
+	"github.com/lukasngl/godogen"
 )
 
 // See https://go.dev/blog/generate
