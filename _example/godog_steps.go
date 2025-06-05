@@ -1,4 +1,4 @@
-//go:generate go run github.com/lukasngl/godogen
+//go:generate go run github.com/lukasngl/godogen/cmd/godogen
 package godogs
 
 import (
@@ -17,7 +17,8 @@ func thereAreGodogs(ctx context.Context, available int) error {
 }
 
 //godogen:when ^I eat (\d+)$
-func iEat(ctx context.Context, num int) error {
+//godogen:when ^I ingest (\d+)$
+func iEat(ctx context.Context, dogs int) error {
 	return godog.ErrPending
 }
 

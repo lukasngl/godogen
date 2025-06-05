@@ -1,0 +1,11 @@
+version: "2"
+
+linters:
+  enable:
+    - godogen-lint
+  settings:
+    custom:
+      godogen-lint:
+        type: "module"
+        description: Linter for godogen directives
+

@@ -1,0 +1,9 @@
+.direnv
+.envrc
+
+testdata/errors_initialize.go
+
+# Binaries
+/godogen
+/godogen-lint
+/gcl-plugin/custom-gcl
