@@ -1,0 +1,7 @@
+.direnv
+.envrc
+
+# Binaries
+/godogen
+/godogen-lint
+/gcl-plugin/custom-gcl
