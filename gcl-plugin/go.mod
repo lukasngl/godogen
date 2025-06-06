@@ -1,12 +1,10 @@
-module github.com/lukasngl/godogen/godogen-lint
+module github.com/lukasngl/godogen/gcl-plugin
 
 go 1.24.2
 
-replace github.com/lukasngl/godogen => ..
-
 require (
 	github.com/golangci/plugin-module-register v0.1.2
-	github.com/lukasngl/godogen v0.1.0-rc.6
+	github.com/lukasngl/godogen v0.1.1
 	golang.org/x/tools v0.33.0
 )
 
