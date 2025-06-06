@@ -1,4 +1,5 @@
 //go:generate go run github.com/lukasngl/godogen/cmd/godogen
+//nolint:unused,deadcode
 package godogs
 
 import (
@@ -8,7 +9,7 @@ import (
 )
 
 func InitializeScenario(ctx *godog.ScenarioContext) {
-	InitializeGodogSteps(ctx)
+	// InitializeGodogSteps(ctx)
 }
 
 //godogen:given there are (\d+) godogs
@@ -28,11 +29,12 @@ func thereShouldBeRemaining(ctx context.Context, remaining int) error {
 }
 
 //godogen:step ^there should be none remaining$
-func thereShouldBeNoneRemaining(ctx context.Context) error {
-	return godog.ErrPending
+//godogen:after
+func thereShouldBeNoneRemaining(ctx context.Context) (string, error) {
+	return "", godog.ErrPending
 }
 
 //godogen:before
-func resetGodogs(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
+func resetGodogs(ctx context.Context, thing string, sc *godog.Scenario) (context.Context, error) {
 	return ctx, godog.ErrPending
 }

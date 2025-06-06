@@ -9,17 +9,14 @@ var Analyzer = &analysis.Analyzer{
 	Doc:  "godogen checks that godog step definitions are valid and have the correct number of parameters.",
 	Run: func(pass *analysis.Pass) (any, error) {
 		for _, file := range pass.Files {
-			steps := GetStepDefinitions(pass.Fset, file)
-
-			for _, step := range steps {
-				for _, err := range step.ValidationErrors {
-					pass.Report(analysis.Diagnostic{
-						Message:  err.Message,
-						Category: "godogen",
-						Pos:      err.Pos(),
-						End:      err.End(),
-					})
-				}
+			stepFuncs := GetStepDefinitions(pass.Fset, file)
+			for err := range stepFuncs.ValidationErrors() {
+				pass.Report(analysis.Diagnostic{
+					Message:  err.Message,
+					Category: "godogen",
+					Pos:      err.Pos(),
+					End:      err.End(),
+				})
 			}
 		}
 

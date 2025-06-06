@@ -92,8 +92,13 @@ func Initialize{{.Name}}(ctx *godog.ScenarioContext) {
 	//
 	// Note: there must be no space between the "//" and the "godogen:step",
 	// see "directive comment" in https://tip.golang.org/doc/comment#syntax
+{{- range .StepFuncs }}
 {{- range .Steps }}
-	ctx.{{.Kind}}({{with .Pattern}}` + "`{{escapeBackticks .}}`" + `, {{end}}{{.Function}})
+	ctx.{{.Kind}}(` + "`{{escapeBackticks .Pattern}}`" + `, {{.Function}})
+{{- end }}
+{{- range .Hooks }}
+	ctx.{{.Kind}}({{.Function}})
+{{- end }}
 {{- end }}
 }
 `
@@ -103,10 +108,10 @@ var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
 }).Parse(initializerTpl))
 
 type File struct {
-	Filepath string
-	Package  string
-	Name     string
-	Steps    []godogen.Step
+	Filepath  string
+	Package   string
+	Name      string
+	StepFuncs []godogen.StepFunc
 }
 
 func main() {
@@ -189,24 +194,22 @@ func genFile(fset *token.FileSet, path string, input *ast.File) error {
 	slug = strings.TrimSuffix(slug, ".go")
 	slog := slog.With(slog.String("input", path))
 
-	steps := godogen.GetStepDefinitions(fset, input)
+	stepFuncs := godogen.GetStepDefinitions(fset, input)
 
-	file := &File{
-		Filepath: path,
-		Package:  input.Name.Name,
-		Name:     strcase.ToCamel(slug),
-		Steps:    steps,
-	}
-
-	if len(file.Steps) == 0 {
+	if len(stepFuncs) == 0 {
 		slog.Debug("no steps found, ignoring")
 		return nil
 	}
 
-	for _, step := range file.Steps {
-		for _, err := range step.ValidationErrors {
-			fmt.Println(prettyPrintValidationErr(fset, err))
-		}
+	for err := range stepFuncs.ValidationErrors() {
+		fmt.Println(prettyPrintValidationErr(fset, err))
+	}
+
+	file := &File{
+		Filepath:  path,
+		Package:   input.Name.Name,
+		Name:      strcase.ToCamel(slug),
+		StepFuncs: stepFuncs,
 	}
 
 	outfile, err := os.Create(slug + *outputSuffix)
