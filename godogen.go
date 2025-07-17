@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
+	"golang.org/x/tools/go/analysis"
 )
 
 type (
@@ -55,6 +56,8 @@ type (
 		ast.Node
 		// Message is the description of the error.
 		Message string
+		// SuggestedFix is an optional replacement text to fix the error.
+		SuggestedFixes []analysis.SuggestedFix
 	}
 )
 
@@ -89,7 +92,7 @@ type fileVisitor struct {
 	fset *token.FileSet
 }
 
-func (file *fileVisitor) visitFuncDecl(funcdecl *ast.FuncDecl) []StepFunc {
+func (visitor *fileVisitor) visitFuncDecl(funcdecl *ast.FuncDecl) []StepFunc {
 	if funcdecl.Doc == nil {
 		return nil
 	}
@@ -100,7 +103,7 @@ func (file *fileVisitor) visitFuncDecl(funcdecl *ast.FuncDecl) []StepFunc {
 	}
 
 	for _, comment := range funcdecl.Doc.List {
-		file.visitComment(&stepFunc, comment)
+		visitor.visitComment(&stepFunc, comment)
 	}
 
 	if !stepFunc.hasDirectives() {
@@ -327,19 +330,65 @@ func validateStep(
 		}}
 	}
 
-	// Note: this does not include (?:non capturing groups)
-	expectedParams := reg.NumSubexp()
-	if actualParams != expectedParams {
-		return []Error{{
-			Message: fmt.Sprintf(
-				"pattern has %d groups, but function has %d regular parameters",
-				expectedParams, actualParams,
-			),
-			Node: directive,
-		}}
+	var errs []Error
+
+	anchorErr, found := checkAnchors(directive, pattern)
+	if found {
+		errs = append(errs, anchorErr)
 	}
 
-	return nil
+	paramErr, found := checkParmCount(directive, reg, actualParams)
+	if found {
+		errs = append(errs, paramErr)
+	}
+
+	return errs
+}
+
+func checkParmCount(node ast.Node, reg *regexp.Regexp, actualParams int) (Error, bool) {
+	// Note: this does not include (?:non capturing groups)
+	expectedParams := reg.NumSubexp()
+	if actualParams == expectedParams {
+		return Error{}, false
+	}
+
+	return Error{
+		Message: fmt.Sprintf(
+			"pattern has %d groups, but function has %d regular parameters",
+			expectedParams, actualParams,
+		),
+		Node: node,
+	}, true
+}
+
+func checkAnchors(node ast.Node, pattern string) (Error, bool) {
+	hasStartAnchor := strings.HasPrefix(pattern, "^")
+	hasEndAnchor := strings.HasSuffix(pattern, "$")
+	if hasStartAnchor && hasEndAnchor {
+		return Error{}, false
+	}
+
+	fixedPattern := pattern
+	if !hasStartAnchor {
+		fixedPattern = "^" + fixedPattern
+	}
+
+	if !hasEndAnchor {
+		fixedPattern = fixedPattern + "$"
+	}
+
+	return Error{
+		Node:    node,
+		Message: "The pattern should start with '^' and end with '$'",
+		SuggestedFixes: []analysis.SuggestedFix{{
+			Message: "Add missing anchors",
+			TextEdits: []analysis.TextEdit{{
+				Pos:     node.Pos(),
+				End:     node.End(),
+				NewText: []byte(fixedPattern),
+			}},
+		}},
+	}, true
 }
 
 func exprToString(fset *token.FileSet, expr ast.Expr) string {
