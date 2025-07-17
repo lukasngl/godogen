@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
+	"golang.org/x/tools/go/analysis"
 )
 
 type (
@@ -55,6 +56,8 @@ type (
 		ast.Node
 		// Message is the description of the error.
 		Message string
+		// SuggestedFix is an optional replacement text to fix the error.
+		SuggestedFixes []analysis.SuggestedFix
 	}
 )
 
@@ -89,7 +92,7 @@ type fileVisitor struct {
 	fset *token.FileSet
 }
 
-func (file *fileVisitor) visitFuncDecl(funcdecl *ast.FuncDecl) []StepFunc {
+func (visitor *fileVisitor) visitFuncDecl(funcdecl *ast.FuncDecl) []StepFunc {
 	if funcdecl.Doc == nil {
 		return nil
 	}
@@ -100,7 +103,7 @@ func (file *fileVisitor) visitFuncDecl(funcdecl *ast.FuncDecl) []StepFunc {
 	}
 
 	for _, comment := range funcdecl.Doc.List {
-		file.visitComment(&stepFunc, comment)
+		visitor.visitComment(&stepFunc, comment)
 	}
 
 	if !stepFunc.hasDirectives() {
@@ -195,7 +198,7 @@ func (stepFunc *StepFunc) validate(fset *token.FileSet) {
 		stepFunc.ValidationErrors = errs
 
 		for i, step := range stepFunc.Steps {
-			stepFunc.Steps[i].ValidationErrors = validateStep(actualParams, step.Node, step.Pattern)
+			stepFunc.Steps[i].ValidationErrors = validateStep(actualParams, step)
 		}
 	}
 }
@@ -309,37 +312,84 @@ func validateStepFunc(
 
 func validateStep(
 	actualParams int,
-	directive *ast.Comment,
-	pattern string,
+	step Step,
 ) []Error {
-	if pattern == "" {
+	if step.Pattern == "" {
 		return []Error{{
 			Message: "pattern is empty",
-			Node:    directive,
+			Node:    step.Node,
 		}}
 	}
 
-	reg, err := regexp.Compile(pattern)
+	reg, err := regexp.Compile(step.Pattern)
 	if err != nil {
 		return []Error{{
 			Message: fmt.Sprintf("regex pattern does not compile: %v", err),
-			Node:    directive,
+			Node:    step.Node,
 		}}
 	}
 
+	var errs []Error
+
+	anchorErr, found := checkAnchors(step)
+	if found {
+		errs = append(errs, anchorErr)
+	}
+
+	paramErr, found := checkParmCount(step.Node, reg, actualParams)
+	if found {
+		errs = append(errs, paramErr)
+	}
+
+	return errs
+}
+
+func checkParmCount(node ast.Node, reg *regexp.Regexp, actualParams int) (Error, bool) {
 	// Note: this does not include (?:non capturing groups)
 	expectedParams := reg.NumSubexp()
-	if actualParams != expectedParams {
-		return []Error{{
-			Message: fmt.Sprintf(
-				"pattern has %d groups, but function has %d regular parameters",
-				expectedParams, actualParams,
-			),
-			Node: directive,
-		}}
+	if actualParams == expectedParams {
+		return Error{}, false
 	}
 
-	return nil
+	return Error{
+		Message: fmt.Sprintf(
+			"pattern has %d groups, but function has %d regular parameters",
+			expectedParams, actualParams,
+		),
+		Node: node,
+	}, true
+}
+
+func checkAnchors(step Step) (Error, bool) {
+	hasStartAnchor := strings.HasPrefix(step.Pattern, "^")
+	hasEndAnchor := strings.HasSuffix(step.Pattern, "$")
+	if hasStartAnchor && hasEndAnchor {
+		return Error{}, false
+	}
+
+	fixedPattern := step.Pattern
+	if !hasStartAnchor {
+		fixedPattern = "^" + fixedPattern
+	}
+
+	if !hasEndAnchor {
+		fixedPattern = fixedPattern + "$"
+	}
+
+	fixedPattern = fmt.Sprintf("//godogen:%s %s", strings.ToLower(step.Kind), fixedPattern)
+
+	return Error{
+		Node:    step.Node,
+		Message: "The pattern should start with '^' and end with '$'",
+		SuggestedFixes: []analysis.SuggestedFix{{
+			Message: "Add missing anchors",
+			TextEdits: []analysis.TextEdit{{
+				Pos:     step.Node.Pos(),
+				End:     step.Node.End(),
+				NewText: []byte(fixedPattern),
+			}},
+		}},
+	}, true
 }
 
 func exprToString(fset *token.FileSet, expr ast.Expr) string {

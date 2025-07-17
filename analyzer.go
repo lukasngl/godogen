@@ -12,10 +12,11 @@ var Analyzer = &analysis.Analyzer{
 			stepFuncs := GetStepDefinitions(pass.Fset, file)
 			for err := range stepFuncs.ValidationErrors() {
 				pass.Report(analysis.Diagnostic{
-					Message:  err.Message,
-					Category: "godogen",
-					Pos:      err.Pos(),
-					End:      err.End(),
+					Message:        err.Message,
+					Category:       "godogen",
+					SuggestedFixes: err.SuggestedFixes,
+					Pos:            err.Pos(),
+					End:            err.End(),
 				})
 			}
 		}
