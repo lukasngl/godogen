@@ -3,6 +3,7 @@ package godogs
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cucumber/godog"
 )
@@ -34,5 +35,11 @@ func thereShouldBeNoneRemaining(ctx context.Context) error {
 
 //godogen:before
 func resetGodogs(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
+	return ctx, godog.ErrPending
+}
+
+//godogen:before_step
+func printStep(ctx context.Context, step *godog.Step) (context.Context, error) {
+	fmt.Println(step.Text)
 	return ctx, godog.ErrPending
 }

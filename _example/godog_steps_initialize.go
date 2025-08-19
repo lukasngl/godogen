@@ -17,4 +17,5 @@ func InitializeGodogSteps(ctx *godog.ScenarioContext) {
 	ctx.Then(`^there should be (\d+) remaining$`, thereShouldBeRemaining)
 	ctx.Step(`^there should be none remaining$`, thereShouldBeNoneRemaining)
 	ctx.Before(resetGodogs)
+	ctx.StepContext().Before(printStep)
 }

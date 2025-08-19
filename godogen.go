@@ -28,6 +28,8 @@ type (
 		Steps []Step
 		// Hooks is a list of hooks that coresspond to a directive comment.
 		Hooks []Hook
+		// Hooks is a list of hooks that coresspond to a directive comment.
+		StepHooks []Hook
 	}
 	// Step represents a step definition in a Go file.
 	// Each step coressponds directive comment on a function.
@@ -82,7 +84,7 @@ func GetStepDefinitions(fset *token.FileSet, file *ast.File) StepFuncs {
 }
 
 func (stepFunc StepFunc) hasDirectives() bool {
-	return len(stepFunc.Steps) > 0 || len(stepFunc.Hooks) > 0
+	return len(stepFunc.Steps) > 0 || len(stepFunc.Hooks) > 0 || len(stepFunc.StepHooks) > 0
 }
 
 type fileVisitor struct {
@@ -116,12 +118,12 @@ func (visitor *fileVisitor) visitFuncDecl(funcdecl *ast.FuncDecl) []StepFunc {
 func (visitor *fileVisitor) visitComment(
 	stepFunc *StepFunc,
 	comment *ast.Comment,
-) []Step {
+) {
 	position := visitor.fset.Position(comment.Pos())
 
 	directive, isDirective := strings.CutPrefix(comment.Text, "//godogen:")
 	if !isDirective {
-		return nil
+		return
 	}
 
 	parts := strings.SplitN(directive, " ", 2)
@@ -133,6 +135,13 @@ func (visitor *fileVisitor) visitComment(
 	}
 
 	switch directive {
+	case "before_step", "after_step":
+		stepFunc.StepHooks = append(stepFunc.StepHooks, Hook{
+			Node:     comment,
+			Function: stepFunc.Function,
+			Kind:     strcase.ToCamel(strings.TrimSuffix(directive, "_step")),
+		})
+
 	case "before", "after":
 		stepFunc.Hooks = append(stepFunc.Hooks, Hook{
 			Node:     comment,
@@ -156,8 +165,6 @@ func (visitor *fileVisitor) visitComment(
 			"function", stepFunc.Function,
 		)
 	}
-
-	return nil
 }
 
 // ValidationErrors returns an iterator over all validation errors found in the step functions.
