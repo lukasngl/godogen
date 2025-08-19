@@ -99,6 +99,9 @@ func Initialize{{.Name}}(ctx *godog.ScenarioContext) {
 {{- range .Hooks }}
 	ctx.{{.Kind}}({{.Function}})
 {{- end }}
+{{- range .StepHooks }}
+	ctx.StepContext(){{.Kind}}({{.Function}})
+{{- end }}
 {{- end }}
 }
 `

@@ -28,6 +28,8 @@ type (
 		Steps []Step
 		// Hooks is a list of hooks that coresspond to a directive comment.
 		Hooks []Hook
+		// Hooks is a list of hooks that coresspond to a directive comment.
+		StepHooks []Hook
 	}
 	// Step represents a step definition in a Go file.
 	// Each step coressponds directive comment on a function.
@@ -133,6 +135,12 @@ func (visitor *fileVisitor) visitComment(
 	}
 
 	switch directive {
+	case "before_step", "after_step":
+		stepFunc.StepHooks = append(stepFunc.StepHooks, Hook{
+			Node:     comment,
+			Function: stepFunc.Function,
+			Kind:     strcase.ToCamel(strings.TrimSuffix(directive, "_step")),
+		})
 	case "before", "after":
 		stepFunc.Hooks = append(stepFunc.Hooks, Hook{
 			Node:     comment,
