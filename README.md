@@ -106,4 +106,18 @@ using the following directives on a function or method named `<FUNCTION>`:
 - receiver instances are passed as parameters to the generated `InitializeGodogSteps` function
 - generic methods are not yet supported
 
+## Editor Integration
+
+### Neovim / Tree-sitter
+
+To enable regex syntax highlighting for godogen directive patterns in Neovim, add the following injection query to `~/.config/nvim/after/queries/go/injections.scm`:
+
+```scheme
+;extends
+
+((comment) @injection.content
+  (#match? @injection.content "^//godogen:")
+  (#set! injection.language "regex"))
+```
+
 [godog]: https://github.com/cucumber/godog

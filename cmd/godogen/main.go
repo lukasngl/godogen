@@ -55,8 +55,8 @@ To define a step, add a directive comment above your function:
 
 The generated initializer function will register this step with godog:
 
-	func InitializeSteps(ctx *godog.ScenarioContext) {
-	    ctx.Step(r` + "`" + `^I have (\d+) cucumbers$` + "`" + `, IHaveCucumbers)
+	func InitializeSteps(sc *godog.ScenarioContext) {
+	    sc.Step(r` + "`" + `^I have (\d+) cucumbers$` + "`" + `, IHaveCucumbers)
 	}
 
 Note: There must be no space between "//" and "godogen:step" for the directive
@@ -86,7 +86,7 @@ package {{.Package}}
 import "github.com/cucumber/godog"
 
 // Initialize{{.Name}} registers steps defined in "{{ .Filepath }}" with the [godog.ScenarioContext].
-func Initialize{{.Name}}(ctx *godog.ScenarioContext
+func Initialize{{.Name}}(sc *godog.ScenarioContext
 {{- range .StepFuncs.Receivers -}}
 	, {{ receiverName . }} {{.TypeName}}
 {{- end -}}
@@ -99,13 +99,13 @@ func Initialize{{.Name}}(ctx *godog.ScenarioContext
 {{- range .StepFuncs }}
 {{- $receiver := .Receiver }}
 {{- range .Steps }}
-	ctx.{{.Kind}}(` + "`{{escapeBackticks .Pattern}}`" + `, {{ with $receiver }}{{ receiverName . }}.{{ end }}{{ .Function }})
+	sc.{{.Kind}}(` + "`{{escapeBackticks .Pattern}}`" + `, {{ with $receiver }}{{ receiverName . }}.{{ end }}{{ .Function }})
 {{- end }}
 {{- range .Hooks }}
-	ctx.{{.Kind}}({{.Function}})
+	sc.{{.Kind}}({{.Function}})
 {{- end }}
 {{- range .StepHooks }}
-	ctx.StepContext().{{.Kind}}({{.Function}})
+	sc.StepContext().{{.Kind}}({{.Function}})
 {{- end }}
 {{- end }}
 }
