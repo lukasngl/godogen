@@ -1,4 +1,4 @@
-//go:generate go run github.com/lukasngl/godogen/cmd/godogen
+//go:generate go tool godogen
 package godogs
 
 import (
@@ -8,8 +8,22 @@ import (
 	"github.com/cucumber/godog"
 )
 
+type (
+	ScState  struct{}
+	ScState2 struct{}
+)
+
+//godogen:when ^I want to use methods$
+func (*ScState) NowWithMethods() {}
+
+//godogen:then ^I can$
+func (*ScState) ThenICan() {}
+
+//godogen:given ^I need more than two state objects$
+func (*ScState2) ItWorks(int) {}
+
 func InitializeScenario(ctx *godog.ScenarioContext) {
-	InitializeGodogSteps(ctx)
+	InitializeGodogSteps(ctx, &ScState{}, &ScState2{})
 }
 
 //godogen:given there are (\d+) godogs

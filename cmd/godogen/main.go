@@ -86,15 +86,20 @@ package {{.Package}}
 import "github.com/cucumber/godog"
 
 // Initialize{{.Name}} registers steps defined in "{{ .Filepath }}" with the [godog.ScenarioContext].
-func Initialize{{.Name}}(ctx *godog.ScenarioContext) {
+func Initialize{{.Name}}(ctx *godog.ScenarioContext
+{{- range .StepFuncs.Receivers -}}
+	, {{ receiverName . }} {{.TypeName}}
+{{- end -}}
+) {
 	// DO NOT EDIT, instead edit the "//godogen:step <PATTERN>" directive
 	// of the respective function declaration.
 	//
 	// Note: there must be no space between the "//" and the "godogen:step",
 	// see "directive comment" in https://tip.golang.org/doc/comment#syntax
 {{- range .StepFuncs }}
+{{- $receiver := .Receiver }}
 {{- range .Steps }}
-	ctx.{{.Kind}}(` + "`{{escapeBackticks .Pattern}}`" + `, {{.Function}})
+	ctx.{{.Kind}}(` + "`{{escapeBackticks .Pattern}}`" + `, {{ with $receiver }}{{ receiverName . }}.{{ end }}{{ .Function }})
 {{- end }}
 {{- range .Hooks }}
 	ctx.{{.Kind}}({{.Function}})
@@ -106,15 +111,11 @@ func Initialize{{.Name}}(ctx *godog.ScenarioContext) {
 }
 `
 
-var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
-	"escapeBackticks": escapeBackticks,
-}).Parse(initializerTpl))
-
 type File struct {
 	Filepath  string
 	Package   string
 	Name      string
-	StepFuncs []godogen.StepFunc
+	StepFuncs godogen.StepFuncs
 }
 
 func main() {
@@ -219,6 +220,23 @@ func genFile(fset *token.FileSet, path string, input *ast.File) error {
 	if err != nil {
 		return fmt.Errorf("%s: failed to open output file: %v", path, err)
 	}
+
+	receiverNames := map[string]string{}
+	receiverIdx := 1
+
+	tmpl := template.Must(template.New("").Funcs(template.FuncMap{
+		"escapeBackticks": escapeBackticks,
+		"receiverName": func(r *godogen.Receiver) string {
+			receiverName, ok := receiverNames[r.TypeName]
+			if !ok {
+				receiverName = fmt.Sprintf("r%d", receiverIdx)
+				receiverIdx++
+				receiverNames[r.TypeName] = receiverName
+			}
+
+			return receiverName
+		},
+	}).Parse(initializerTpl))
 
 	err = tmpl.Execute(outfile, file)
 	if err != nil {

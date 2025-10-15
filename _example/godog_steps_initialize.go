@@ -5,12 +5,15 @@ package godogs
 import "github.com/cucumber/godog"
 
 // InitializeGodogSteps registers steps defined in "godog_steps.go" with the [godog.ScenarioContext].
-func InitializeGodogSteps(ctx *godog.ScenarioContext) {
+func InitializeGodogSteps(ctx *godog.ScenarioContext, r1 *ScState, r2 *ScState2) {
 	// DO NOT EDIT, instead edit the "//godogen:step <PATTERN>" directive
 	// of the respective function declaration.
 	//
 	// Note: there must be no space between the "//" and the "godogen:step",
 	// see "directive comment" in https://tip.golang.org/doc/comment#syntax
+	ctx.When(`^I want to use methods$`, r1.NowWithMethods)
+	ctx.Then(`^I can$`, r1.ThenICan)
+	ctx.Given(`^I need more than two state objects$`, r2.ItWorks)
 	ctx.Given(`there are (\d+) godogs`, thereAreGodogs)
 	ctx.When(`^I eat (\d+)$`, iEat)
 	ctx.When(`^I ingest (\d+)$`, iEat)

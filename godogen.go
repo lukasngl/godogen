@@ -9,6 +9,7 @@ import (
 	"iter"
 	"log/slog"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/iancoleman/strcase"
@@ -30,6 +31,8 @@ type (
 		Hooks []Hook
 		// Hooks is a list of hooks that coresspond to a directive comment.
 		StepHooks []Hook
+		// Receiver is the type of the method recevier, nil if not a method.
+		Receiver *Receiver
 	}
 	// Step represents a step definition in a Go file.
 	// Each step coressponds directive comment on a function.
@@ -60,6 +63,13 @@ type (
 		Message string
 		// SuggestedFix is an optional replacement text to fix the error.
 		SuggestedFixes []analysis.SuggestedFix
+	}
+	Receiver struct {
+		// Node is the AST node where the error occurred.
+		ast.Node
+		//
+		Type     ast.Expr
+		TypeName string
 	}
 )
 
@@ -102,6 +112,7 @@ func (visitor *fileVisitor) visitFuncDecl(funcdecl *ast.FuncDecl) []StepFunc {
 	stepFunc := StepFunc{
 		Node:     funcdecl,
 		Function: funcdecl.Name.Name,
+		Receiver: visitor.maybeGetReceiver(funcdecl),
 	}
 
 	for _, comment := range funcdecl.Doc.List {
@@ -113,6 +124,20 @@ func (visitor *fileVisitor) visitFuncDecl(funcdecl *ast.FuncDecl) []StepFunc {
 	}
 
 	return []StepFunc{stepFunc}
+}
+
+func (visitor *fileVisitor) maybeGetReceiver(funcdecl *ast.FuncDecl) *Receiver {
+	if funcdecl.Recv == nil || funcdecl.Recv.List == nil {
+		return nil
+	}
+
+	t := funcdecl.Recv.List[0].Type
+
+	return &Receiver{
+		Node:     funcdecl.Recv,
+		Type:     t,
+		TypeName: exprToString(visitor.fset, t),
+	}
 }
 
 func (visitor *fileVisitor) visitComment(
@@ -164,6 +189,30 @@ func (visitor *fileVisitor) visitComment(
 			"directive", directive,
 			"function", stepFunc.Function,
 		)
+	}
+}
+
+// Receivers returns an iterator over all unique receivers found in the step functions.
+func (stepFuncs StepFuncs) Receivers() iter.Seq[*Receiver] {
+	return func(yield func(*Receiver) bool) {
+		// for small number of receivers, a simple slice is more efficient than a map or set.
+		var seen []string
+
+		for _, stepFunc := range stepFuncs {
+			if stepFunc.Receiver == nil {
+				continue
+			}
+
+			if slices.Contains(seen, stepFunc.Receiver.TypeName) {
+				continue
+			}
+
+			if !yield(stepFunc.Receiver) {
+				return
+			}
+
+			seen = append(seen, stepFunc.Receiver.TypeName)
+		}
 	}
 }
 
