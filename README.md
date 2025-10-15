@@ -4,6 +4,14 @@ Now with Methods! 🎉
 
 godogen is golang codegenerator, that allows you to colocate [godog] step definitions with their pattern.
 
+## Installation
+
+```bash
+go get -tool github.com/lukasngl/godogen@latest
+```
+
+Then use as `go tool godogen`.
+
 ## Motivation
 
 Similar to Java's Cucumber annotations, godogen allows you to colocate test step patterns with their implementations:
@@ -31,7 +39,7 @@ This approach keeps your test definitions close to their patterns, making them e
 ```go
 // file: godog_steps.go
 package godogs
-//go:generate go run github.com/lukasngl/godogen
+//go:generate go tool godogen
 
 import (
 	"fmt"
