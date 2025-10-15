@@ -92,6 +92,8 @@ using the following directives on a function or method named `<FUNCTION>`:
   - `//godogen:then <PATTERN>` will generate `ctx.Then(<PATTERN>, <FUNCTION>)`
   - `//godogen:after` will generate `ctx.After(<FUNCTION>)`
   - `//godogen:before` will generate `ctx.Before(<FUNCTION>)`
+  - `//godogen:after_step` will generate `ctx.StepContext().After(<FUNCTION>)`
+  - `//godogen:before_step` will generate `ctx.StepContext().Before(<FUNCTION>)`
 - methods on any type are supported as step definitions
 - receiver instances are passed as parameters to the generated `InitializeGodogSteps` function
 - generic methods are not yet supported
