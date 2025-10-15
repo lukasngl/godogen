@@ -106,6 +106,27 @@ using the following directives on a function or method named `<FUNCTION>`:
 - receiver instances are passed as parameters to the generated `InitializeGodogSteps` function
 - generic methods are not yet supported
 
+## Linting
+
+godogen includes a linter that validates your godogen directives and step definitions:
+
+- **Pattern validation**: ensures patterns are valid regex and properly anchored with `^` and `$` (auto-fixable)
+- **Parameter validation**: checks parameter count matches regex groups and validates parameter types
+- **Return type validation**: ensures return types are compatible with godog (error, godog.Steps, context.Context, or (context.Context, error))
+- **Directive validation**: prevents mixing hook and step directives on the same function
+
+**Installation:**
+```bash
+go get -tool github.com/lukasngl/godogen/cmd/godogen-lint@latest
+```
+
+**Usage:**
+```bash
+go tool godogen-lint [-fix] ./...
+```
+
+Integration with golangci-lint is pending at [lukasngl/golangci-lint](https://github.com/lukasngl/golangci-lint).
+
 ## Editor Integration
 
 ### Neovim / Tree-sitter
