@@ -179,21 +179,60 @@ func (srv *Server) textDocumentCompletion(
 	context *glsp.Context,
 	params *protocol.CompletionParams,
 ) (any, error) {
+	slog.Info("textDocumentCompletion called",
+		"uri", params.TextDocument.URI,
+		"position", params.Position,
+	)
 	candidates := []protocol.CompletionItem{}
 
-	for uri := range srv.index.Features {
-		candidates = append(candidates, protocol.CompletionItem{
-			Label:  uri,
-			Detail: opt("Feature file"),
-		})
+	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
+	if !isFile {
+		slog.Info("not a file path")
+		return nil, nil
 	}
 
-	for uri := range srv.index.GoFiles {
-		slog.Info("adding go file to completion", "uri", uri, "all", srv.index.GoFiles)
-		candidates = append(candidates, protocol.CompletionItem{
-			Label:  uri,
-			Detail: opt("Go file"),
-		})
+	// TODO: handle unparseable files
+	featureFile, isFeature := srv.index.Features[path]
+	if !isFeature {
+		slog.Info("not a featureFile")
+		return nil, nil
+	}
+
+	dialectMap, ok := any(gherkin.DialectsBuiltin()).(map[string]*gherkin.Dialect)
+	if ok {
+		slog.Info("providing language candidates")
+		for lang := range dialectMap {
+			candidates = append(candidates, protocol.CompletionItem{
+				Label:  lang,
+				Detail: &[]string{"Language"}[0],
+			})
+		}
+	}
+
+	language := "en"
+	if featureFile != nil && featureFile.Language != "" {
+		language = featureFile.Language
+	}
+
+	dialect := gherkin.DialectsBuiltin().GetDialect(language)
+	if dialect == nil {
+		// fallback to English
+		dialect = gherkin.DialectsBuiltin().GetDialect("en")
+	}
+
+	if dialect == nil {
+		slog.Info("no dialect found", "language", featureFile.Language)
+		return nil, nil // well, nothing we can do
+	}
+
+	slog.Info("providing keyword candidates", "language", dialect.Language)
+	for kind, keywords := range dialect.Keywords {
+		for _, keyword := range keywords {
+			candidates = append(candidates, protocol.CompletionItem{
+				Label:  keyword,
+				Detail: &kind,
+			})
+		}
 	}
 
 	return candidates, nil
@@ -463,10 +502,6 @@ func mapStepKeywordType(t messages.StepKeywordType) string {
 	}
 }
 
-func opt[T any](p T) *T {
-	return &p
-}
-
 // === Server Lifecycle
 
 func (srv *Server) Run(ctx context.Context) error {
@@ -653,6 +688,7 @@ func (index *Index) FeatureChanged(uri string, content []byte) error {
 
 	document, err := gherkin.ParseGherkinDocument(reader, uuid.NewString)
 	if err != nil {
+		slog.Error("failed to parse feature file", "uri", uri, "error", err)
 		return err
 	}
 
