@@ -41,6 +41,8 @@ github.com/tliron/commonlog v0.2.21 h1:V1v+6opmzuOqDxxnxxM5RWtlHZmqZlDxkKeZGs6Dp
 github.com/tliron/commonlog v0.2.21/go.mod h1:W6XVoS/zo7mHXv2Kz8HKnBq+U34dFysJ2KUh2Aboibw=
 github.com/tliron/glsp v0.2.2 h1:IKPfwpE8Lu8yB6Dayta+IyRMAbTVunudeauEgjXBt+c=
 github.com/tliron/glsp v0.2.2/go.mod h1:GMVWDNeODxHzmDPvYbYTCs7yHVaEATfYtXiYJ9w1nBg=
+github.com/tliron/glsp v0.2.3-0.20250617204849-59d6e3155c81 h1:gQPs3aNGs4z0AWq4v1iyaA6eyoE0RvGihgDPw6REIhY=
+github.com/tliron/glsp v0.2.3-0.20250617204849-59d6e3155c81/go.mod h1:0mr4+bYwGddJfGuaxnUZBSxkshSzFOIyTmBRvfJDBo4=
 github.com/tliron/go-kutil v0.4.0 h1:5JwcBacgnqS3XyhwCWZKvq8ftlbVttNXnt+kfCH+Y2E=
 github.com/tliron/go-kutil v0.4.0/go.mod h1:hpHVq+CP1uci2M208UEjPiPwsRsz/QweGBnLB3CaQ24=
 golang.org/x/crypto v0.42.0 h1:chiH31gIWm57EkTXpwnqf8qeuMUi0yekh6mT2AvFlqI=

@@ -26,6 +26,7 @@ import (
 	"github.com/lukasngl/godogen"
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
+	protocol17 "github.com/tliron/glsp/protocol_3_17"
 	"github.com/tliron/glsp/server"
 )
 
@@ -59,7 +60,7 @@ type Server struct {
 	index   *Index
 	watcher *fsnotify.Watcher
 	server  *server.Server
-	handler *protocol.Handler
+	handler *protocol17.Handler
 	cancel  context.CancelFunc
 }
 
@@ -74,19 +75,23 @@ func NewServer() (*Server, error) {
 		watcher: watcher,
 	}
 
-	server.handler = &protocol.Handler{
+	server.handler = &protocol17.Handler{
+		// diagnostics
+		TextDocumentDiagnostic: server.textDocumentDiagnostic,
 		// lifecycle
 		Initialize: server.initialize,
-		Shutdown:   server.shutdown,
-		// document sync
-		TextDocumentDidOpen:   server.textDocumentDidOpen,
-		TextDocumentDidChange: server.textDocumentDidChange,
-		// completion
-		TextDocumentCompletion: server.textDocumentCompletion,
-		// navigation
-		TextDocumentDefinition:     server.textDocumentDefinition,
-		TextDocumentImplementation: server.textDocumentImplementation,
-		TextDocumentReferences:     server.textDocumentReferences,
+		Handler: protocol.Handler{
+			Shutdown: server.shutdown,
+			// document sync
+			TextDocumentDidOpen:   server.textDocumentDidOpen,
+			TextDocumentDidChange: server.textDocumentDidChange,
+			// completion
+			TextDocumentCompletion: server.textDocumentCompletion,
+			// navigation
+			TextDocumentDefinition:     server.textDocumentDefinition,
+			TextDocumentImplementation: server.textDocumentImplementation,
+			TextDocumentReferences:     server.textDocumentReferences,
+		},
 	}
 
 	return server, nil
@@ -96,7 +101,7 @@ func NewServer() (*Server, error) {
 
 func (srv *Server) initialize(
 	context *glsp.Context,
-	params *protocol.InitializeParams,
+	params *protocol17.InitializeParams,
 ) (any, error) {
 	slog.Info("Initializing "+lsName, "version", version, "rootURI", *params.RootURI)
 
@@ -119,7 +124,7 @@ func (srv *Server) initialize(
 	capabilities.CompletionProvider = &protocol.CompletionOptions{}
 	capabilities.TextDocumentSync = protocol.TextDocumentSyncKindFull
 
-	return protocol.InitializeResult{
+	return protocol17.InitializeResult{
 		Capabilities: capabilities,
 		ServerInfo: &protocol.InitializeResultServerInfo{
 			Name:    lsName,
@@ -172,6 +177,57 @@ func (srv *Server) textDocumentDidChange(
 	}
 
 	return nil
+}
+
+// returns DocumentDiagnosticReport = RelatedFullDocumentDiagnosticReport | RelatedUnchangedDocumentDiagnosticReport
+func (srv *Server) textDocumentDiagnostic(
+	context *glsp.Context,
+	params *protocol17.DocumentDiagnosticParams,
+) (any, error) {
+	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
+	if !isFile {
+		return nil, nil
+	}
+
+	srv.index.mx.RLock()
+	defer srv.index.mx.RUnlock()
+
+	goFile, isGoFile := srv.index.GoFiles[path]
+	if !isGoFile {
+		return nil, nil
+	}
+
+	var diagnostics []protocol.Diagnostic
+
+	stepFuncs := godogen.GetStepDefinitions(goFile.FileSet, goFile.File)
+
+	for validationErr := range stepFuncs.ValidationErrors() {
+		start := goFile.Position(validationErr.Pos())
+		end := goFile.Position(validationErr.End())
+
+		diagnostics = append(diagnostics, protocol.Diagnostic{
+			Range: protocol.Range{
+				Start: protocol.Position{
+					Line:      protocol.UInteger(start.Line - 1),
+					Character: protocol.UInteger(start.Column - 1),
+				},
+				End: protocol.Position{
+					Line:      protocol.UInteger(end.Line - 1),
+					Character: protocol.UInteger(end.Column - 1),
+				},
+			},
+			Severity: box(protocol.DiagnosticSeverityWarning),
+			Source:   box("godogen"),
+			Message:  validationErr.Message,
+		})
+	}
+
+	return protocol17.RelatedFullDocumentDiagnosticReport{
+		FullDocumentDiagnosticReport: protocol17.FullDocumentDiagnosticReport{
+			Kind:  string(protocol17.DocumentDiagnosticReportKindFull),
+			Items: diagnostics,
+		},
+	}, nil
 }
 
 // Returns: []CompletionItem | CompletionList | nil
@@ -267,10 +323,8 @@ func (srv *Server) getDefinitions(
 		"line", position.Line,
 	)
 
-	slog.Info("acquiring lock")
-	srv.index.mx.Lock()
-	slog.Info("lock acquired")
-	defer srv.index.mx.Unlock()
+	srv.index.mx.RLock()
+	defer srv.index.mx.RUnlock()
 
 	path, isFile := strings.CutPrefix(doc.URI, "file://")
 	if !isFile {
@@ -365,10 +419,8 @@ func (srv *Server) textDocumentReferences(
 		"line", params.Position.Line,
 	)
 
-	slog.Info("acquiring lock")
-	srv.index.mx.Lock()
-	slog.Info("lock acquired")
-	defer srv.index.mx.Unlock()
+	srv.index.mx.RLock()
+	defer srv.index.mx.RUnlock()
 
 	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
 	if !isFile {
@@ -502,6 +554,10 @@ func mapStepKeywordType(t messages.StepKeywordType) string {
 	}
 }
 
+func box[T any](v T) *T {
+	return &v
+}
+
 // === Server Lifecycle
 
 func (srv *Server) Run(ctx context.Context) error {
@@ -564,7 +620,6 @@ func (srv *Server) Run(ctx context.Context) error {
 func (srv *Server) Close() error {
 	return errors.Join(
 		srv.watcher.Close(),
-		srv.server.GetStdio().Close(),
 	)
 }
 
