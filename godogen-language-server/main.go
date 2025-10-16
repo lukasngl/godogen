@@ -83,8 +83,9 @@ func NewServer() (*Server, error) {
 		TextDocumentDidChange: server.textDocumentDidChange,
 		// completion
 		TextDocumentCompletion: server.textDocumentCompletion,
-		// go to definition
+		// navigation
 		TextDocumentDefinition: server.textDocumentDefinition,
+		TextDocumentReferences: server.textDocumentReferences,
 	}
 
 	return server, nil
@@ -269,6 +270,89 @@ func (srv *Server) textDocumentDefinition(
 					}
 
 					pos := goFile.Position(stepDef.Node.Pos())
+
+					locs = append(locs, protocol.Location{
+						URI: "file://" + path,
+						Range: protocol.Range{
+							Start: protocol.Position{
+								Line:      protocol.UInteger(pos.Line - 1),
+								Character: protocol.UInteger(pos.Column - 1),
+							},
+							End: protocol.Position{
+								Line:      protocol.UInteger(pos.Line - 1),
+								Character: protocol.UInteger(pos.Column - 1),
+							},
+						},
+					})
+				}
+			}
+		}
+	}
+
+	return locs, nil
+}
+
+func (srv *Server) textDocumentHover() {
+	// TODO: show the whole step function
+}
+
+func (srv *Server) textDocumentReferences(
+	context *glsp.Context,
+	params *protocol.ReferenceParams,
+) ([]protocol.Location, error) {
+	// TODO: optimize with indexes
+
+	slog.Info("textDocumentDefinition called",
+		"uri", params.TextDocument.URI,
+		"line", params.Position.Line,
+	)
+
+	slog.Info("acquiring lock")
+	srv.index.mx.Lock()
+	slog.Info("lock acquired")
+	defer srv.index.mx.Unlock()
+
+	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
+	if !isFile {
+		slog.Info("not a file path")
+		return nil, nil
+	}
+
+	goFile, found := srv.index.GoFiles[path]
+	if !found {
+		slog.Info("not a go file")
+		return nil, nil
+	}
+
+	var locs []protocol.Location
+
+	slog.Info("iterating stepDefs", "file", goFile)
+
+	stepFuncs := godogen.GetStepDefinitions(goFile.FileSet, goFile.File)
+
+	for _, stepFunc := range stepFuncs {
+		for _, stepDef := range stepFunc.Steps {
+			if goFile.Position(stepDef.Node.Pos()).Line-1 != int(params.Position.Line) {
+				continue
+			}
+
+			for path, featureFile := range srv.index.Features {
+				for kind, step := range Steps(featureFile) {
+					slog.Info("matching against def", "kind", stepDef.Kind, "text", stepDef.Pattern)
+					matcher, err := regexp.Compile(stepDef.Pattern)
+					if err != nil {
+						continue
+					}
+
+					if stepDef.Kind != "Step" && stepDef.Kind != kind {
+						continue
+					}
+
+					if !matcher.MatchString(step.Text) {
+						continue
+					}
+
+					pos := step.Location
 
 					locs = append(locs, protocol.Location{
 						URI: "file://" + path,
