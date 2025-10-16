@@ -84,8 +84,9 @@ func NewServer() (*Server, error) {
 		// completion
 		TextDocumentCompletion: server.textDocumentCompletion,
 		// navigation
-		TextDocumentDefinition: server.textDocumentDefinition,
-		TextDocumentReferences: server.textDocumentReferences,
+		TextDocumentDefinition:     server.textDocumentDefinition,
+		TextDocumentImplementation: server.textDocumentImplementation,
+		TextDocumentReferences:     server.textDocumentReferences,
 	}
 
 	return server, nil
@@ -199,15 +200,32 @@ func (srv *Server) textDocumentCompletion(
 }
 
 // Returns: Location | []Location | []LocationLink | nil
+func (srv *Server) textDocumentImplementation(
+	context *glsp.Context,
+	params *protocol.ImplementationParams,
+) (any, error) {
+	return srv.getDefinitions(context, false, params.Position, params.TextDocument)
+}
+
+// Returns: Location | []Location | []LocationLink | nil
 func (srv *Server) textDocumentDefinition(
 	context *glsp.Context,
 	params *protocol.DefinitionParams,
 ) (any, error) {
+	return srv.getDefinitions(context, true, params.Position, params.TextDocument)
+}
+
+func (srv *Server) getDefinitions(
+	context *glsp.Context,
+	patternLoc bool,
+	position protocol.Position,
+	doc protocol.TextDocumentIdentifier,
+) ([]protocol.Location, error) {
 	// TODO: optimize with indexes
 
 	slog.Info("textDocumentDefinition called",
-		"uri", params.TextDocument.URI,
-		"line", params.Position.Line,
+		"uri", doc.URI,
+		"line", position.Line,
 	)
 
 	slog.Info("acquiring lock")
@@ -215,7 +233,7 @@ func (srv *Server) textDocumentDefinition(
 	slog.Info("lock acquired")
 	defer srv.index.mx.Unlock()
 
-	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
+	path, isFile := strings.CutPrefix(doc.URI, "file://")
 	if !isFile {
 		slog.Info("not a file path")
 		return nil, nil
@@ -233,9 +251,9 @@ func (srv *Server) textDocumentDefinition(
 
 	for kind, step := range Steps(featureFile) {
 		slog.Info("checking step", "kind", kind, "text", step.Text)
-		if step.Location.Line-1 != int64(params.Position.Line) {
+		if step.Location.Line-1 != int64(position.Line) {
 			slog.Info("not on the same line",
-				"expected", params.Position.Line,
+				"expected", position.Line,
 				"got", step.Location.Line,
 			)
 			continue
@@ -269,7 +287,12 @@ func (srv *Server) textDocumentDefinition(
 						continue
 					}
 
-					pos := goFile.Position(stepDef.Node.Pos())
+					var pos token.Position
+					if patternLoc {
+						pos = goFile.Position(stepDef.Node.Pos())
+					} else {
+						pos = goFile.Position(stepFunc.Node.Pos())
+					}
 
 					locs = append(locs, protocol.Location{
 						URI: "file://" + path,
@@ -290,10 +313,6 @@ func (srv *Server) textDocumentDefinition(
 	}
 
 	return locs, nil
-}
-
-func (srv *Server) textDocumentHover() {
-	// TODO: show the whole step function
 }
 
 func (srv *Server) textDocumentReferences(
