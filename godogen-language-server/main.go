@@ -10,10 +10,12 @@ import (
 	"go/token"
 	"io"
 	"io/fs"
+	"iter"
 	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -21,6 +23,7 @@ import (
 	messages "github.com/cucumber/messages/go/v30"
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
+	"github.com/lukasngl/godogen"
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 	"github.com/tliron/glsp/server"
@@ -80,6 +83,8 @@ func NewServer() (*Server, error) {
 		TextDocumentDidChange: server.textDocumentDidChange,
 		// completion
 		TextDocumentCompletion: server.textDocumentCompletion,
+		// go to definition
+		TextDocumentDefinition: server.textDocumentDefinition,
 	}
 
 	return server, nil
@@ -190,6 +195,169 @@ func (srv *Server) textDocumentCompletion(
 	}
 
 	return candidates, nil
+}
+
+// Returns: Location | []Location | []LocationLink | nil
+func (srv *Server) textDocumentDefinition(
+	context *glsp.Context,
+	params *protocol.DefinitionParams,
+) (any, error) {
+	// TODO: optimize with indexes
+
+	slog.Info("textDocumentDefinition called",
+		"uri", params.TextDocument.URI,
+		"line", params.Position.Line,
+	)
+
+	slog.Info("acquiring lock")
+	srv.index.mx.Lock()
+	slog.Info("lock acquired")
+	defer srv.index.mx.Unlock()
+
+	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
+	if !isFile {
+		slog.Info("not a file path")
+		return nil, nil
+	}
+
+	featureFile, found := srv.index.Features[path]
+	if !found {
+		slog.Info("not a feature file")
+		return nil, nil
+	}
+
+	var locs []protocol.Location
+
+	slog.Info("iterating steps", "file", featureFile)
+
+	for kind, step := range Steps(featureFile) {
+		slog.Info("checking step", "kind", kind, "text", step.Text)
+		if step.Location.Line-1 != int64(params.Position.Line) {
+			slog.Info("not on the same line",
+				"expected", params.Position.Line,
+				"got", step.Location.Line,
+			)
+			continue
+		}
+
+		slog.Info("matching against go filess",
+			"path", path,
+			"files", srv.index.GoFiles,
+		)
+
+		for path, goFile := range srv.index.GoFiles {
+			stepFuncs := godogen.GetStepDefinitions(goFile.FileSet, goFile.File)
+			slog.Info("matching against steps",
+				"path", path,
+				"steps", len(stepFuncs),
+			)
+
+			for _, stepFunc := range stepFuncs {
+				for _, stepDef := range stepFunc.Steps {
+					slog.Info("matching against def", "kind", stepDef.Kind, "text", stepDef.Pattern)
+					matcher, err := regexp.Compile(stepDef.Pattern)
+					if err != nil {
+						continue
+					}
+
+					if stepDef.Kind != "Step" && stepDef.Kind != kind {
+						continue
+					}
+
+					if !matcher.MatchString(step.Text) {
+						continue
+					}
+
+					pos := goFile.Position(stepDef.Node.Pos())
+
+					locs = append(locs, protocol.Location{
+						URI: "file://" + path,
+						Range: protocol.Range{
+							Start: protocol.Position{
+								Line:      protocol.UInteger(pos.Line - 1),
+								Character: protocol.UInteger(pos.Column - 1),
+							},
+							End: protocol.Position{
+								Line:      protocol.UInteger(pos.Line - 1),
+								Character: protocol.UInteger(pos.Column - 1),
+							},
+						},
+					})
+				}
+			}
+		}
+	}
+
+	return locs, nil
+}
+
+func Steps(feature *messages.Feature) iter.Seq2[string, *messages.Step] {
+	return func(yield func(string, *messages.Step) bool) {
+		for _, child := range feature.Children {
+			if child.Background != nil {
+				if !yieldSteps(child.Background.Steps, yield) {
+					return
+				}
+			}
+
+			if child.Rule != nil {
+				for _, ruleChild := range child.Rule.Children {
+					if ruleChild.Background != nil {
+						if !yieldSteps(ruleChild.Background.Steps, yield) {
+							return
+						}
+					}
+					if ruleChild.Scenario != nil {
+						if !yieldSteps(ruleChild.Scenario.Steps, yield) {
+							return
+						}
+					}
+				}
+			}
+
+			if child.Scenario != nil {
+				if !yieldSteps(child.Scenario.Steps, yield) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func yieldSteps(steps []*messages.Step, yield func(string, *messages.Step) bool) bool {
+	lastKind := messages.StepKeywordType_UNKNOWN
+	for _, step := range steps {
+		lastKind = conjugateKind(lastKind, step)
+		if !yield(mapStepKeywordType(lastKind), step) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func conjugateKind(
+	lastKind messages.StepKeywordType,
+	step *messages.Step,
+) messages.StepKeywordType {
+	if step.KeywordType == messages.StepKeywordType_CONJUNCTION {
+		return lastKind
+	}
+
+	return step.KeywordType
+}
+
+func mapStepKeywordType(t messages.StepKeywordType) string {
+	switch t {
+	case messages.StepKeywordType_ACTION:
+		return "When"
+	case messages.StepKeywordType_CONTEXT:
+		return "Given"
+	case messages.StepKeywordType_OUTCOME:
+		return "Then"
+	default:
+		return ""
+	}
 }
 
 func opt[T any](p T) *T {
@@ -323,7 +491,7 @@ func (index *Index) GoFileChanged(uri string, content []byte) error {
 		err  error
 	)
 
-	fset := token.NewFileSet()
+	file.FileSet = token.NewFileSet()
 
 	if content == nil {
 		file, err := os.Open(uri)
@@ -343,7 +511,7 @@ func (index *Index) GoFileChanged(uri string, content []byte) error {
 		return nil
 	}
 
-	file.File, err = parser.ParseFile(fset, uri, content, parser.ParseComments)
+	file.File, err = parser.ParseFile(file.FileSet, uri, content, parser.ParseComments)
 	if err != nil {
 		return err
 	}
