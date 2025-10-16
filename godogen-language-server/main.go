@@ -91,6 +91,8 @@ func NewServer() (*Server, error) {
 			TextDocumentDefinition:     server.textDocumentDefinition,
 			TextDocumentImplementation: server.textDocumentImplementation,
 			TextDocumentReferences:     server.textDocumentReferences,
+			// autofix
+			TextDocumentCodeAction: server.textDocumentCodeAction,
 		},
 	}
 
@@ -197,7 +199,7 @@ func (srv *Server) textDocumentDiagnostic(
 		return nil, nil
 	}
 
-	var diagnostics []protocol.Diagnostic
+	diagnostics := []protocol.Diagnostic{}
 
 	stepFuncs := godogen.GetStepDefinitions(goFile.FileSet, goFile.File)
 
@@ -228,6 +230,83 @@ func (srv *Server) textDocumentDiagnostic(
 			Items: diagnostics,
 		},
 	}, nil
+}
+
+// Returns: Command | []CodeAction | nil
+func (srv *Server) textDocumentCodeAction(
+	context *glsp.Context,
+	params *protocol.CodeActionParams,
+) (any, error) {
+	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
+	if !isFile {
+		return nil, nil
+	}
+
+	srv.index.mx.RLock()
+	defer srv.index.mx.RUnlock()
+
+	goFile, isGoFile := srv.index.GoFiles[path]
+	if !isGoFile {
+		return nil, nil
+	}
+
+	var actions []protocol.CodeAction
+
+	stepFuncs := godogen.GetStepDefinitions(goFile.FileSet, goFile.File)
+
+	for validationErr := range stepFuncs.ValidationErrors() {
+		for _, fix := range validationErr.SuggestedFixes {
+
+			start := goFile.Position(validationErr.Pos())
+			end := goFile.Position(validationErr.End())
+
+			var edits []protocol.TextEdit
+			for _, textEdit := range fix.TextEdits {
+				editStart := goFile.Position(textEdit.Pos)
+				editEnd := goFile.Position(textEdit.End)
+
+				edits = append(edits, protocol.TextEdit{
+					Range: protocol.Range{
+						Start: protocol.Position{
+							Line:      protocol.UInteger(editStart.Line - 1),
+							Character: protocol.UInteger(editStart.Column - 1),
+						},
+						End: protocol.Position{
+							Line:      protocol.UInteger(editEnd.Line - 1),
+							Character: protocol.UInteger(editEnd.Column - 1),
+						},
+					},
+					NewText: string(textEdit.NewText),
+				})
+			}
+
+			actions = append(actions, protocol.CodeAction{
+				Title: fix.Message,
+				Edit: &protocol.WorkspaceEdit{
+					Changes: map[protocol.DocumentUri][]protocol.TextEdit{
+						params.TextDocument.URI: edits,
+					},
+				},
+				Diagnostics: []protocol.Diagnostic{{
+					Range: protocol.Range{
+						Start: protocol.Position{
+							Line:      protocol.UInteger(start.Line - 1),
+							Character: protocol.UInteger(start.Column - 1),
+						},
+						End: protocol.Position{
+							Line:      protocol.UInteger(end.Line - 1),
+							Character: protocol.UInteger(end.Column - 1),
+						},
+					},
+					Severity: box(protocol.DiagnosticSeverityWarning),
+					Source:   box("godogen"),
+					Message:  validationErr.Message,
+				}},
+			})
+		}
+	}
+
+	return actions, nil
 }
 
 // Returns: []CompletionItem | CompletionList | nil
@@ -449,6 +528,7 @@ func (srv *Server) textDocumentReferences(
 			for path, featureFile := range srv.index.Features {
 				for kind, step := range Steps(featureFile) {
 					slog.Info("matching against def", "kind", stepDef.Kind, "text", stepDef.Pattern)
+					// TODO: cache compiled regexes
 					matcher, err := regexp.Compile(stepDef.Pattern)
 					if err != nil {
 						continue

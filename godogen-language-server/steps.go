@@ -1,4 +1,6 @@
 package main
 
-//godogen:step I eat
-func iEat() {}
+import "context"
+
+//godogen:step ^I eat (\d+ godogs$
+func iEat(ctx context.Context, num int) {}
