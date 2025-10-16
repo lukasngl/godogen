@@ -10,7 +10,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/google/uuid v1.6.0
 	github.com/lukasngl/godogen v0.0.0
-	github.com/tliron/glsp v0.2.2
+	github.com/tliron/glsp v0.2.3-0.20250617204849-59d6e3155c81
 )
 
 require (
