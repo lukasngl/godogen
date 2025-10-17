@@ -45,6 +45,8 @@ type (
 		Kind string
 		// Pattern of steps, execpt before and after
 		Pattern string
+		// Compiled regular expression of the pattern, nil if pattern did not compile.
+		Regexp *regexp.Regexp
 		// Errors that occurred while validating the step.
 		ValidationErrors []Error
 	}
@@ -253,8 +255,8 @@ func (stepFunc *StepFunc) validate(fset *token.FileSet) {
 		actualParams, errs := validateStepFunc(fset, stepFunc.Node)
 		stepFunc.ValidationErrors = errs
 
-		for i, step := range stepFunc.Steps {
-			stepFunc.Steps[i].ValidationErrors = validateStep(actualParams, step)
+		for i := range stepFunc.Steps {
+			stepFunc.Steps[i].validate(actualParams)
 		}
 	}
 }
@@ -366,38 +368,35 @@ func validateStepFunc(
 	return actualParams, errs
 }
 
-func validateStep(
-	actualParams int,
-	step Step,
-) []Error {
+func (step *Step) validate(actualParams int) {
 	if step.Pattern == "" {
-		return []Error{{
+		step.ValidationErrors = append(step.ValidationErrors, Error{
 			Message: "pattern is empty",
 			Node:    step.Node,
-		}}
+		})
+		return
 	}
 
-	reg, err := regexp.Compile(step.Pattern)
+	regexp, err := regexp.Compile(step.Pattern)
 	if err != nil {
-		return []Error{{
+		step.ValidationErrors = append(step.ValidationErrors, Error{
 			Message: fmt.Sprintf("regex pattern does not compile: %v", err),
 			Node:    step.Node,
-		}}
+		})
+		return
 	}
 
-	var errs []Error
+	step.Regexp = regexp
 
-	anchorErr, found := checkAnchors(step)
+	anchorErr, found := step.checkAnchors()
 	if found {
-		errs = append(errs, anchorErr)
+		step.ValidationErrors = append(step.ValidationErrors, anchorErr)
 	}
 
-	paramErr, found := checkParmCount(step.Node, reg, actualParams)
+	paramErr, found := checkParmCount(step.Node, regexp, actualParams)
 	if found {
-		errs = append(errs, paramErr)
+		step.ValidationErrors = append(step.ValidationErrors, paramErr)
 	}
-
-	return errs
 }
 
 func checkParmCount(node ast.Node, reg *regexp.Regexp, actualParams int) (Error, bool) {
@@ -416,7 +415,7 @@ func checkParmCount(node ast.Node, reg *regexp.Regexp, actualParams int) (Error,
 	}, true
 }
 
-func checkAnchors(step Step) (Error, bool) {
+func (step *Step) checkAnchors() (Error, bool) {
 	hasStartAnchor := strings.HasPrefix(step.Pattern, "^")
 	hasEndAnchor := strings.HasSuffix(step.Pattern, "$")
 	if hasStartAnchor && hasEndAnchor {

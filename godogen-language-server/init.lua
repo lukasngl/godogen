@@ -1,6 +1,6 @@
 vim.lsp.config["godogen-language-server"] = {
 	-- Command and arguments to start the server.
-	cmd = { "go", "run", "github.com/lukasngl/godogen-language-server" },
+	cmd = { "go", "run", "github.com/lukasngl/godogen/godogen-language-server", "stdio" },
 	-- Filetypes to automatically attach to.
 	filetypes = { "go", "cucumber" },
 	-- Sets the "workspace" to the directory where any of these files is found.
