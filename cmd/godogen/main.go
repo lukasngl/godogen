@@ -97,15 +97,15 @@ func Initialize{{.Name}}(sc *godog.ScenarioContext
 	// Note: there must be no space between the "//" and the "godogen:step",
 	// see "directive comment" in https://tip.golang.org/doc/comment#syntax
 {{- range .StepFuncs }}
-{{- $receiver := .Receiver }}
+{{- $function := funcName . }}
 {{- range .Steps }}
-	sc.{{.Kind}}(` + "`{{escapeBackticks .Pattern}}`" + `, {{ with $receiver }}{{ receiverName . }}.{{ end }}{{ .Function }})
+	sc.{{.Kind}}(` + "`{{escapeBackticks .Pattern}}`" + `, {{ $function }})
 {{- end }}
 {{- range .Hooks }}
-	sc.{{.Kind}}({{.Function}})
+	sc.{{.Kind}}({{ $function }})
 {{- end }}
 {{- range .StepHooks }}
-	sc.StepContext().{{.Kind}}({{.Function}})
+	sc.StepContext().{{.Kind}}({{ $function }})
 {{- end }}
 {{- end }}
 }
@@ -223,19 +223,27 @@ func genFile(fset *token.FileSet, path string, input *ast.File) error {
 
 	receiverNames := map[string]string{}
 	receiverIdx := 1
+	receiverName := func(r *godogen.Receiver) string {
+		receiverName, ok := receiverNames[r.TypeName]
+		if !ok {
+			receiverName = fmt.Sprintf("r%d", receiverIdx)
+			receiverIdx++
+			receiverNames[r.TypeName] = receiverName
+		}
+
+		return receiverName
+	}
 
 	tmpl := template.Must(template.New("").Funcs(template.FuncMap{
 		"escapeBackticks": escapeBackticks,
-		"receiverName": func(r *godogen.Receiver) string {
-			receiverName, ok := receiverNames[r.TypeName]
-			if !ok {
-				receiverName = fmt.Sprintf("r%d", receiverIdx)
-				receiverIdx++
-				receiverNames[r.TypeName] = receiverName
+		"funcName": func(f godogen.StepFunc) string {
+			if f.Receiver != nil {
+				return receiverName(f.Receiver) + "." + f.Function
 			}
 
-			return receiverName
+			return f.Function
 		},
+		"receiverName": receiverName,
 	}).Parse(initializerTpl))
 
 	err = tmpl.Execute(outfile, file)

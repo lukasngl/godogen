@@ -39,8 +39,6 @@ type (
 	// A function may have multiple directives, e.g. for different patterns.
 	Step struct {
 		Node *ast.Comment
-		// Name of the function to pass as the step func.
-		Function string
 		// One of "Step", "Given", "When", or "Then"
 		Kind string
 		// Pattern of steps, execpt before and after
@@ -176,10 +174,9 @@ func (visitor *fileVisitor) visitComment(
 
 	case "step", "given", "when", "then":
 		stepFunc.Steps = append(stepFunc.Steps, Step{
-			Node:     comment,
-			Function: stepFunc.Function,
-			Kind:     strcase.ToCamel(directive),
-			Pattern:  pattern,
+			Node:    comment,
+			Kind:    strcase.ToCamel(directive),
+			Pattern: pattern,
 		})
 
 	default:
