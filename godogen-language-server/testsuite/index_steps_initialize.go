@@ -4,8 +4,8 @@ package testsuite
 
 import "github.com/cucumber/godog"
 
-// InitializeSteps registers steps defined in "steps.go" with the [godog.ScenarioContext].
-func InitializeSteps(sc *godog.ScenarioContext, r1 *TestContext) {
+// InitializeIndexSteps registers steps defined in "index_steps.go" with the [godog.ScenarioContext].
+func InitializeIndexSteps(sc *godog.ScenarioContext, r1 *TestContext) {
 	// DO NOT EDIT, instead edit the "//godogen:step <PATTERN>" directive
 	// of the respective function declaration.
 	//
