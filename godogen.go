@@ -194,6 +194,19 @@ func (visitor *fileVisitor) visitComment(
 	}
 }
 
+// AllSteps returns an iterator over all step definitions found in the step functions.
+func (stepFuncs StepFuncs) AllSteps() iter.Seq2[StepFunc, Step] {
+	return func(yield func(StepFunc, Step) bool) {
+		for _, stepFunc := range stepFuncs {
+			for _, stepDef := range stepFunc.Steps {
+				if !yield(stepFunc, stepDef) {
+					return
+				}
+			}
+		}
+	}
+}
+
 // Receivers returns an iterator over all unique receivers found in the step functions.
 func (stepFuncs StepFuncs) Receivers() iter.Seq[*Receiver] {
 	return func(yield func(*Receiver) bool) {

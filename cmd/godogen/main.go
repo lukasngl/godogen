@@ -151,7 +151,7 @@ func run() error {
 
 		err = genFile(fset, filepath, goFile)
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Fprintln(os.Stderr, err.Error())
 			hasErr = true
 		}
 	}
@@ -177,7 +177,12 @@ func getFiles(fset *token.FileSet, input string) (iter.Seq2[string, *ast.File], 
 	} else {
 		pkgs, err := parser.ParseDir(fset, input, nil, parser.ParseComments)
 		if err != nil {
-			return nil, err
+			if pkgs == nil {
+				return nil, err
+			}
+
+			fmt.Fprintln(os.Stderr, "warning: partial parse succeeded despite error:")
+			fmt.Fprintln(os.Stderr, err)
 		}
 
 		return func(yield func(string, *ast.File) bool) {

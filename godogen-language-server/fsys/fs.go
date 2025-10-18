@@ -13,7 +13,7 @@ import (
 )
 
 // OnFileChangedFunc is called when a file is created or modified on disk.
-type OnFileChangedFunc func(path string) error
+type OnFileChangedFunc func(path string, content []byte) error
 
 // OnFileDeletedFunc is called when a file is deleted from disk.
 type OnFileDeletedFunc func(path string)
@@ -81,7 +81,12 @@ func (w *Watcher) discover(root string) error {
 		ext := filepath.Ext(path)
 		if ext == ".go" || ext == ".feature" {
 			fullPath := filepath.Join(root, path)
-			if err := w.onFileChanged(fullPath); err != nil {
+			content, err := os.ReadFile(fullPath)
+			if err != nil {
+				slog.Error("failed to read file during discovery", "path", fullPath, "error", err)
+				return nil
+			}
+			if err := w.onFileChanged(fullPath, content); err != nil {
 				slog.Error("failed to index file during discovery", "path", fullPath, "error", err)
 			}
 		}
@@ -121,7 +126,12 @@ func (w *Watcher) watch(ctx context.Context) {
 			if deleted {
 				w.onFileDeleted(event.Name)
 			} else {
-				if err := w.onFileChanged(event.Name); err != nil {
+				content, err := os.ReadFile(event.Name)
+				if err != nil {
+					slog.Error("failed to read file", "path", event.Name, "error", err)
+					continue
+				}
+				if err := w.onFileChanged(event.Name, content); err != nil {
 					slog.Error("failed to index file", "path", event.Name, "error", err)
 				}
 			}
