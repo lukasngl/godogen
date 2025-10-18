@@ -105,10 +105,10 @@ func (ffv *FeatureFileVersions) get() *FeatureFile {
 // The file type is explicitly known to be Go, so no extension checking is performed.
 // If the file contains no godogen directives, any existing workspace version is removed.
 func (index *Index) IndexWorkspaceGoFile(path string, content []byte) error {
-	slog.Info("Indexing Go file", "path", path, "isWorkspace", true)
+	slog.Debug("indexing file", "component", "index", "path", path, "isWorkspace", true, "type", "go")
 
 	if !bytes.Contains(content, []byte("\n//godogen:")) {
-		slog.Info("file does not contain directives", "path", path)
+		slog.Debug("no directives found", "component", "index", "path", path)
 		index.RemoveWorkspaceGoFile(path)
 		return nil
 	}
@@ -138,10 +138,10 @@ func (index *Index) IndexWorkspaceGoFile(path string, content []byte) error {
 // IndexDiskGoFile indexes a Go file from disk.
 // If the file contains no godogen directives, any existing disk version is removed.
 func (index *Index) IndexDiskGoFile(path string, content []byte) error {
-	slog.Info("Indexing Go file", "path", path, "isWorkspace", false)
+	slog.Debug("indexing file", "component", "index", "path", path, "isWorkspace", false, "type", "go")
 
 	if !bytes.Contains(content, []byte("\n//godogen:")) {
-		slog.Info("file does not contain directives", "path", path)
+		slog.Debug("no directives found", "component", "index", "path", path)
 		index.RemoveDiskGoFile(path)
 		return nil
 	}
@@ -171,7 +171,7 @@ func (index *Index) IndexDiskGoFile(path string, content []byte) error {
 // RemoveWorkspaceGoFile removes the workspace version of a Go file from the index.
 // If both workspace and disk versions are nil after removal, the file entry is deleted entirely.
 func (index *Index) RemoveWorkspaceGoFile(path string) {
-	slog.Info("Removing Go file from index", "path", path, "isWorkspace", true)
+	slog.Debug("removing file", "component", "index", "path", path, "isWorkspace", true, "type", "go")
 
 	index.mx.Lock()
 	defer index.mx.Unlock()
@@ -192,7 +192,7 @@ func (index *Index) RemoveWorkspaceGoFile(path string) {
 // RemoveDiskGoFile removes the disk version of a Go file from the index.
 // If both workspace and disk versions are nil after removal, the file entry is deleted entirely.
 func (index *Index) RemoveDiskGoFile(path string) {
-	slog.Info("Removing Go file from index", "path", path, "isWorkspace", false)
+	slog.Debug("removing file", "component", "index", "path", path, "isWorkspace", false, "type", "go")
 
 	index.mx.Lock()
 	defer index.mx.Unlock()
@@ -213,13 +213,13 @@ func (index *Index) RemoveDiskGoFile(path string) {
 // IndexWorkspaceFeatureFile indexes a Gherkin feature file from the workspace (LSP client).
 // The file type is explicitly known to be a feature file, so no extension checking is performed.
 func (index *Index) IndexWorkspaceFeatureFile(path string, content []byte) error {
-	slog.Info("Indexing feature file", "path", path, "isWorkspace", true)
+	slog.Debug("indexing file", "component", "index", "path", path, "isWorkspace", true, "type", "feature")
 
 	reader := bytes.NewReader(content)
 
 	document, err := gherkin.ParseGherkinDocument(reader, uuid.NewString)
 	if err != nil {
-		slog.Error("failed to parse feature file", "path", path, "error", err)
+		slog.Debug("parse error", "component", "index", "path", path, "error", err)
 		return err
 	}
 
@@ -239,13 +239,13 @@ func (index *Index) IndexWorkspaceFeatureFile(path string, content []byte) error
 
 // IndexDiskFeatureFile indexes a Gherkin feature file from disk.
 func (index *Index) IndexDiskFeatureFile(path string, content []byte) error {
-	slog.Info("Indexing feature file", "path", path, "isWorkspace", false)
+	slog.Debug("indexing file", "component", "index", "path", path, "isWorkspace", false, "type", "feature")
 
 	reader := bytes.NewReader(content)
 
 	document, err := gherkin.ParseGherkinDocument(reader, uuid.NewString)
 	if err != nil {
-		slog.Error("failed to parse feature file", "path", path, "error", err)
+		slog.Debug("parse error", "component", "index", "path", path, "error", err)
 		return err
 	}
 
@@ -266,7 +266,7 @@ func (index *Index) IndexDiskFeatureFile(path string, content []byte) error {
 // RemoveWorkspaceFeatureFile removes the workspace version of a feature file from the index.
 // If both workspace and disk versions are nil after removal, the file entry is deleted entirely.
 func (index *Index) RemoveWorkspaceFeatureFile(path string) {
-	slog.Info("Removing feature file from index", "path", path, "isWorkspace", true)
+	slog.Debug("removing file", "component", "index", "path", path, "isWorkspace", true, "type", "feature")
 
 	index.mx.Lock()
 	defer index.mx.Unlock()
@@ -287,7 +287,7 @@ func (index *Index) RemoveWorkspaceFeatureFile(path string) {
 // RemoveDiskFeatureFile removes the disk version of a feature file from the index.
 // If both workspace and disk versions are nil after removal, the file entry is deleted entirely.
 func (index *Index) RemoveDiskFeatureFile(path string) {
-	slog.Info("Removing feature file from index", "path", path, "isWorkspace", false)
+	slog.Debug("removing file", "component", "index", "path", path, "isWorkspace", false, "type", "feature")
 
 	index.mx.Lock()
 	defer index.mx.Unlock()
@@ -465,34 +465,26 @@ func (index *Index) FindStepDefinitions(featurePath string, line int, patternLoc
 
 	versions := index.Features[featurePath]
 	if versions == nil {
-		slog.Info("not a feature file", "path", featurePath)
+		slog.Debug("file not found", "component", "index", "path", featurePath, "type", "feature")
 		return nil
 	}
 
 	featureFile := versions.get()
 	if featureFile == nil {
-		slog.Info("not a feature file", "path", featurePath)
+		slog.Debug("file not indexed", "component", "index", "path", featurePath, "type", "feature")
 		return nil
 	}
 
 	var locs []Location
 
-	slog.Info("iterating steps", "file", featureFile)
+	slog.Debug("finding definitions", "component", "index", "path", featurePath, "line", line)
 
 	for kind, step := range featureFile.Steps() {
-		slog.Info("checking step", "kind", kind, "text", step.Text)
 		if step.Location.Line-1 != int64(line) {
-			slog.Info("not on the same line",
-				"expected", line,
-				"got", step.Location.Line,
-			)
 			continue
 		}
 
-		slog.Info("matching against go files",
-			"path", featurePath,
-			"files", index.GoFiles,
-		)
+		slog.Debug("matching step", "component", "index", "kind", kind, "text", step.Text)
 
 		for path, goFileVersions := range index.GoFiles {
 			goFile := goFileVersions.get()
@@ -535,19 +527,19 @@ func (index *Index) FindStepReferences(goPath string, line int, column int) []Lo
 
 	versions := index.GoFiles[goPath]
 	if versions == nil {
-		slog.Info("not a go file", "path", goPath)
+		slog.Debug("file not found", "component", "index", "path", goPath, "type", "go")
 		return nil
 	}
 
 	goFile := versions.get()
 	if goFile == nil {
-		slog.Info("not a go file", "path", goPath)
+		slog.Debug("file not indexed", "component", "index", "path", goPath, "type", "go")
 		return nil
 	}
 
 	var locs []Location
 
-	slog.Info("iterating stepDefs", "file", goFile)
+	slog.Debug("finding references", "component", "index", "path", goPath, "line", line, "column", column)
 
 	for stepFunc, stepDef := range goFile.AllSteps() {
 		// Only proceed if cursor is on pattern comment or function name

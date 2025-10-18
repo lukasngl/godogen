@@ -21,6 +21,11 @@ import (
 
 const lsName = "godogen-language-server"
 
+var (
+	debugFlag   bool
+	logFileFlag string
+)
+
 var stdioCmd = &cobra.Command{
 	Use:   "stdio",
 	Short: "Start the language server using stdio",
@@ -30,9 +35,15 @@ var stdioCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(stdioCmd)
+	stdioCmd.Flags().BoolVarP(&debugFlag, "debug", "d", false, "Enable debug logging")
+	stdioCmd.Flags().StringVar(&logFileFlag, "log-file", "", "Write logs to file instead of stderr")
 }
 
 func runStdio(cmd *cobra.Command, args []string) error {
+	if err := setupLogging(debugFlag, logFileFlag); err != nil {
+		return fmt.Errorf("failed to setup logging: %w", err)
+	}
+
 	srv, err := NewServer()
 	if err != nil {
 		return err
@@ -40,6 +51,35 @@ func runStdio(cmd *cobra.Command, args []string) error {
 	defer srv.Close()
 
 	return srv.server.RunStdio()
+}
+
+// setupLogging configures structured logging with JSON output.
+func setupLogging(debug bool, logFile string) error {
+	// Determine log level
+	level := slog.LevelError // Default: silent except errors
+	if debug {
+		level = slog.LevelDebug
+	}
+
+	// Determine output destination
+	var writer *os.File = os.Stderr
+	if logFile != "" {
+		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open log file: %w", err)
+		}
+		writer = f
+	}
+
+	// Create JSON handler for structured, filterable logs
+	handler := slog.NewJSONHandler(writer, &slog.HandlerOptions{
+		Level: level,
+	})
+
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+
+	return nil
 }
 
 // Server implements the language server.
@@ -136,7 +176,7 @@ func (srv *Server) initialize(
 	_ *glsp.Context,
 	params *protocol17.InitializeParams,
 ) (any, error) {
-	slog.Info("Initializing "+lsName, "version", version, "rootURI", *params.RootURI)
+	slog.Debug("initialize", "component", "lsp", "version", version, "rootURI", *params.RootURI)
 
 	path, isFile := strings.CutPrefix(*params.RootURI, "file://")
 	if !isFile {
@@ -146,7 +186,7 @@ func (srv *Server) initialize(
 	// Load configuration with precedence: LSP options > config file > defaults
 	config := loadConfig(path, params.InitializationOptions)
 
-	slog.Info("Using step patterns", "patterns", config.StepPatterns)
+	slog.Debug("config loaded", "component", "lsp", "stepPatterns", config.StepPatterns)
 
 	// Start watching and discover files
 	ctx := context.Background()
@@ -353,28 +393,25 @@ func (srv *Server) textDocumentCompletion(
 	_ *glsp.Context,
 	params *protocol.CompletionParams,
 ) (any, error) {
-	slog.Info("textDocumentCompletion called",
-		"uri", params.TextDocument.URI,
-		"position", params.Position,
-	)
+	slog.Debug("completion request", "component", "lsp", "uri", params.TextDocument.URI, "position", params.Position)
+
 	candidates := []protocol.CompletionItem{}
 
 	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
 	if !isFile {
-		slog.Info("not a file path")
+		slog.Debug("not a file URI", "component", "lsp", "uri", params.TextDocument.URI)
 		return nil, nil
 	}
 
 	// TODO: handle partially files by using tree-sitter
 	featureFile := srv.index.GetFeature(path)
 	if featureFile == nil {
-		slog.Info("not a featureFile")
+		slog.Debug("not a feature file", "component", "lsp", "path", path)
 		return nil, nil
 	}
 
 	dialectMap, ok := any(gherkin.DialectsBuiltin()).(map[string]*gherkin.Dialect)
 	if ok {
-		slog.Info("providing language candidates")
 		for lang := range dialectMap {
 			candidates = append(candidates, protocol.CompletionItem{
 				Label:  lang,
@@ -395,11 +432,12 @@ func (srv *Server) textDocumentCompletion(
 	}
 
 	if dialect == nil {
-		slog.Info("no dialect found", "language", featureFile.Language)
+		slog.Debug("no dialect found", "component", "lsp", "language", featureFile.Language)
 		return nil, nil // well, nothing we can do
 	}
 
-	slog.Info("providing keyword candidates", "language", dialect.Language)
+	slog.Debug("providing completions", "component", "lsp", "language", dialect.Language, "count", len(candidates))
+
 	for kind, keywords := range dialect.Keywords {
 		for _, keyword := range keywords {
 			candidates = append(candidates, protocol.CompletionItem{
@@ -433,14 +471,11 @@ func (srv *Server) getDefinitions(
 	position protocol.Position,
 	doc protocol.TextDocumentIdentifier,
 ) ([]protocol.Location, error) {
-	slog.Info("textDocumentDefinition called",
-		"uri", doc.URI,
-		"line", position.Line,
-	)
+	slog.Debug("definition request", "component", "lsp", "uri", doc.URI, "line", position.Line, "patternLoc", patternLoc)
 
 	path, isFile := strings.CutPrefix(doc.URI, "file://")
 	if !isFile {
-		slog.Info("not a file path")
+		slog.Debug("not a file URI", "component", "lsp", "uri", doc.URI)
 		return nil, nil
 	}
 
@@ -470,15 +505,11 @@ func (srv *Server) textDocumentReferences(
 	_ *glsp.Context,
 	params *protocol.ReferenceParams,
 ) ([]protocol.Location, error) {
-	slog.Info("textDocumentReferences called",
-		"uri", params.TextDocument.URI,
-		"line", params.Position.Line,
-		"character", params.Position.Character,
-	)
+	slog.Debug("references request", "component", "lsp", "uri", params.TextDocument.URI, "line", params.Position.Line, "character", params.Position.Character)
 
 	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
 	if !isFile {
-		slog.Info("not a file path")
+		slog.Debug("not a file URI", "component", "lsp", "uri", params.TextDocument.URI)
 		return nil, nil
 	}
 
@@ -524,22 +555,22 @@ func loadConfig(workspaceRoot string, lspOptions any) Config {
 	if data, err := os.ReadFile(configPath); err == nil {
 		var fileConfig Config
 		if err := json.Unmarshal(data, &fileConfig); err == nil {
-			slog.Info("Loaded config file", "path", configPath)
+			slog.Debug("config file loaded", "component", "lsp", "path", configPath)
 			if len(fileConfig.StepPatterns) > 0 {
 				config.StepPatterns = fileConfig.StepPatterns
 			}
 		} else {
-			slog.Warn("Failed to parse config file", "path", configPath, "error", err)
+			slog.Warn("failed to parse config file", "component", "lsp", "path", configPath, "error", err)
 		}
 	} else {
-		slog.Info("No config file found", "path", configPath)
+		slog.Debug("no config file", "component", "lsp", "path", configPath)
 	}
 
 	// Override with LSP initialization options if provided
 	lspConfig := parseInitializationOptions(lspOptions)
 	if len(lspConfig.StepPatterns) > 0 {
 		config.StepPatterns = lspConfig.StepPatterns
-		slog.Info("Using LSP initialization options for step patterns")
+		slog.Debug("using LSP init options", "component", "lsp", "stepPatterns", lspConfig.StepPatterns)
 	}
 
 	return config
@@ -555,7 +586,7 @@ func parseInitializationOptions(raw any) Config {
 
 	optsMap, ok := raw.(map[string]any)
 	if !ok {
-		slog.Warn("initialization options is not a map")
+		slog.Debug("init options not a map", "component", "lsp")
 		return options
 	}
 
@@ -566,11 +597,11 @@ func parseInitializationOptions(raw any) Config {
 				if pattern, ok := p.(string); ok {
 					options.StepPatterns = append(options.StepPatterns, pattern)
 				} else {
-					slog.Warn("stepPatterns contains non-string value", "value", p)
+					slog.Debug("invalid stepPattern value", "component", "lsp", "value", p)
 				}
 			}
 		} else {
-			slog.Warn("stepPatterns is not an array", "type", fmt.Sprintf("%T", patternsRaw))
+			slog.Debug("stepPatterns not an array", "component", "lsp", "type", fmt.Sprintf("%T", patternsRaw))
 		}
 	}
 
