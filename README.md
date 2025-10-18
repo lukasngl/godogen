@@ -136,9 +136,25 @@ To enable regex syntax highlighting for godogen directive patterns in Neovim, ad
 ```scheme
 ;extends
 
+; godogen directives
 ((comment) @injection.content
   (#match? @injection.content "^//godogen:")
   (#set! injection.language "regex"))
+
+; godog step functions
+(call_expression
+  (selector_expression) @_function
+  (#any-of? @_function "sc.When" "sc.Then" "sc.Given" "sc.Step")
+  (argument_list
+    .
+    [
+      (raw_string_literal
+        (raw_string_literal_content) @injection.content)
+      (interpreted_string_literal
+        (interpreted_string_literal_content) @injection.content)
+    ])
+  (#set! injection.language "regex"))
+
 ```
 
 [godog]: https://github.com/cucumber/godog
