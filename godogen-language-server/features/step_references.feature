@@ -182,6 +182,154 @@ Feature: Finding step references
       When I request step references for steps.go line 2
       Then I get 2 results
 
+  Rule: Pattern comment references
+    Clicking on a pattern comment returns references for that specific pattern only
+
+    Scenario: Find references from specific pattern with multiple patterns
+      When steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have cukes$
+        //godogen:when ^I add cukes$
+        func IHaveCukes() {}
+        """
+      And example.feature is added to the workspace:
+        """
+        Feature: Example
+          Scenario: Test
+            Given I have cukes
+            When I add cukes
+        """
+      When I request step references for steps.go line 2
+      Then I get 1 result
+      And the results are:
+        | path            | line | column |
+        | example.feature | 3    | 5      |
+
+  Rule: Function declaration references
+    Clicking on a function declaration returns references for all patterns on that function
+
+    Scenario: Find references from function declaration
+      When steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+        """
+      And example.feature is added to the workspace:
+        """
+        Feature: Example
+          Scenario: Test
+            Given I have 5 cukes
+        """
+      When I request step references for steps.go line 3 column 6
+      Then I get 1 result
+      And the results are:
+        | path            | line | column |
+        | example.feature | 3    | 5      |
+
+    Scenario: Find references from function with multiple step patterns
+      When steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have cukes$
+        //godogen:when ^I add cukes$
+        func IHaveCukes() {}
+        """
+      And example.feature is added to the workspace:
+        """
+        Feature: Example
+          Scenario: Test
+            Given I have cukes
+            When I add cukes
+        """
+      When I request step references for steps.go line 4 column 6
+      Then I get 2 results
+      And the results are:
+        | path            | line | column |
+        | example.feature | 3    | 5      |
+        | example.feature | 4    | 5      |
+
+    Scenario: No references from function body
+      When steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have cukes$
+        func IHaveCukes() {
+            return nil
+        }
+        """
+      And example.feature is added to the workspace:
+        """
+        Feature: Example
+          Scenario: Test
+            Given I have cukes
+        """
+      When I request step references for steps.go line 4 column 5
+      Then I get 0 results
+
+    Scenario Outline: Clicking on <scenario> of one-liner function
+      When steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have cukes$
+        func IHaveCukes() error { return nil }
+        """
+      And example.feature is added to the workspace:
+        """
+        Feature: Example
+          Scenario: Test
+            Given I have cukes
+        """
+      When I request step references for steps.go line 3 column <column>
+      Then I get <count> results
+
+      Examples:
+        | scenario                     | column | count |
+        | func keyword                 | 1      | 0     |
+        | start of function name       | 6      | 1     |
+        | middle of function name      | 10     | 1     |
+        | end of function name         | 15     | 1     |
+        | opening parenthesis          | 16     | 0     |
+        | return type                  | 25     | 0     |
+        | opening brace                | 32     | 0     |
+
+    Scenario Outline: Clicking on <scenario> of multi-line function
+      When steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have cukes$
+        func IHaveCukes() {
+            return nil
+        }
+        """
+      And example.feature is added to the workspace:
+        """
+        Feature: Example
+          Scenario: Test
+            Given I have cukes
+        """
+      When I request step references for steps.go line <line> column <column>
+      Then I get <count> results
+
+      Examples:
+        | scenario                     | line | column | count |
+        | func keyword                 | 3    | 1      | 0     |
+        | start of function name       | 3    | 6      | 1     |
+        | middle of function name      | 3    | 10     | 1     |
+        | end of function name         | 3    | 15     | 1     |
+        | opening parenthesis          | 3    | 16     | 0     |
+        | closing parenthesis          | 3    | 17     | 0     |
+        | opening brace                | 3    | 19     | 0     |
+        | function body                | 4    | 5      | 0     |
+        | closing brace                | 5    | 1      | 0     |
+
   Rule: Workspace file preference
     Workspace files override disk files for queries
 

@@ -524,8 +524,12 @@ func (index *Index) FindStepDefinitions(featurePath string, line int, patternLoc
 	return locs
 }
 
-// FindStepReferences finds feature steps that reference the Go step pattern at the given line.
-func (index *Index) FindStepReferences(goPath string, line int) []Location {
+// FindStepReferences finds feature steps that reference the Go step pattern at the given line and column.
+// Column is 1-indexed (1 = first character of line).
+// Returns references only if the cursor is on:
+// - A pattern comment (//godogen:...), or
+// - The function name (not the func keyword, parameters, return type, or body)
+func (index *Index) FindStepReferences(goPath string, line int, column int) []Location {
 	index.mx.RLock()
 	defer index.mx.RUnlock()
 
@@ -545,8 +549,10 @@ func (index *Index) FindStepReferences(goPath string, line int) []Location {
 
 	slog.Info("iterating stepDefs", "file", goFile)
 
-	for _, stepDef := range goFile.AllSteps() {
-		if goFile.Position(stepDef.Node.Pos()).Line-1 != line {
+	for stepFunc, stepDef := range goFile.AllSteps() {
+		// Only proceed if cursor is on pattern comment or function name
+		if !cursorInStepPattern(goFile, stepDef, line, column) &&
+			!cursorInFunctionName(goFile, stepFunc, line, column) {
 			continue
 		}
 
@@ -573,6 +579,25 @@ func (index *Index) FindStepReferences(goPath string, line int) []Location {
 	}
 
 	return locs
+}
+
+// cursorInStepPattern checks if the cursor is positioned on a step pattern comment.
+func cursorInStepPattern(goFile *GoFile, stepDef godogen.Step, line int, column int) bool {
+	stepDefPos := goFile.Position(stepDef.Node.Pos())
+	stepDefEnd := goFile.Position(stepDef.Node.End())
+	stepDefLine := stepDefPos.Line - 1
+
+	return stepDefLine == line && column >= stepDefPos.Column && column <= stepDefEnd.Column
+}
+
+// cursorInFunctionName checks if the cursor is positioned on the function name.
+// Returns false if cursor is on func keyword, parameters, return type, or body.
+func cursorInFunctionName(goFile *GoFile, stepFunc godogen.StepFunc, line int, column int) bool {
+	funcNamePos := goFile.Position(stepFunc.Node.Name.Pos())
+	funcNameEnd := goFile.Position(stepFunc.Node.Name.End())
+	funcNameLine := funcNamePos.Line - 1
+
+	return funcNameLine == line && column >= funcNamePos.Column && column < funcNameEnd.Column
 }
 
 func stepMatchesDefinition(kind string, step *messages.Step, stepDef godogen.Step) bool {
