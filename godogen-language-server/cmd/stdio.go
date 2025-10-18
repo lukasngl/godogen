@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -47,6 +49,17 @@ type Server struct {
 	server  *server.Server
 	handler *protocol17.Handler
 	cancel  context.CancelFunc
+}
+
+// Config contains godogen language server configuration.
+// This can be loaded from a .godogen-language-server.json file in the workspace root,
+// or provided via LSP initialization options.
+type Config struct {
+	// StepPatterns is a list of glob patterns for discovering step definitions.
+	// Patterns can be absolute or relative to the workspace root.
+	// Examples: "**/*_steps.go", "../shared-steps/**/*.go", "**/*.feature"
+	// Default: ["**"] (watch everything in workspace)
+	StepPatterns []string `json:"stepPatterns"`
 }
 
 // NewServer creates a new language server instance.
@@ -130,9 +143,14 @@ func (srv *Server) initialize(
 		return nil, fmt.Errorf("root URI is not a file path: %s", *params.RootURI)
 	}
 
+	// Load configuration with precedence: LSP options > config file > defaults
+	config := loadConfig(path, params.InitializationOptions)
+
+	slog.Info("Using step patterns", "patterns", config.StepPatterns)
+
 	// Start watching and discover files
 	ctx := context.Background()
-	if err := srv.watcher.DiscoverAndWatch(ctx, path); err != nil {
+	if err := srv.watcher.DiscoverAndWatch(ctx, path, config.StepPatterns); err != nil {
 		return nil, err
 	}
 
@@ -487,4 +505,72 @@ func (srv *Server) textDocumentReferences(
 
 func box[T any](v T) *T {
 	return &v
+}
+
+// loadConfig loads configuration with the following precedence:
+// 1. LSP initialization options (highest priority)
+// 2. .godogen-language-server.json in workspace root
+// 3. Default values (lowest priority)
+func loadConfig(workspaceRoot string, lspOptions any) Config {
+	// Start with defaults
+	config := Config{
+		StepPatterns: []string{"**"},
+	}
+
+	// Try to load from config file
+	configPath := filepath.Join(workspaceRoot, ".godogen-language-server.json")
+	if data, err := os.ReadFile(configPath); err == nil {
+		var fileConfig Config
+		if err := json.Unmarshal(data, &fileConfig); err == nil {
+			slog.Info("Loaded config file", "path", configPath)
+			if len(fileConfig.StepPatterns) > 0 {
+				config.StepPatterns = fileConfig.StepPatterns
+			}
+		} else {
+			slog.Warn("Failed to parse config file", "path", configPath, "error", err)
+		}
+	} else {
+		slog.Info("No config file found", "path", configPath)
+	}
+
+	// Override with LSP initialization options if provided
+	lspConfig := parseInitializationOptions(lspOptions)
+	if len(lspConfig.StepPatterns) > 0 {
+		config.StepPatterns = lspConfig.StepPatterns
+		slog.Info("Using LSP initialization options for step patterns")
+	}
+
+	return config
+}
+
+// parseInitializationOptions parses the initialization options from the LSP client.
+func parseInitializationOptions(raw any) Config {
+	var options Config
+
+	if raw == nil {
+		return options
+	}
+
+	optsMap, ok := raw.(map[string]any)
+	if !ok {
+		slog.Warn("initialization options is not a map")
+		return options
+	}
+
+	// Parse stepPatterns
+	if patternsRaw, ok := optsMap["stepPatterns"]; ok {
+		if patternsList, ok := patternsRaw.([]any); ok {
+			for _, p := range patternsList {
+				if pattern, ok := p.(string); ok {
+					options.StepPatterns = append(options.StepPatterns, pattern)
+				} else {
+					slog.Warn("stepPatterns contains non-string value", "value", p)
+				}
+			}
+		} else {
+			slog.Warn("stepPatterns is not an array", "type", fmt.Sprintf("%T", patternsRaw))
+		}
+	}
+
+	return options
 }

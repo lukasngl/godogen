@@ -1,6 +1,7 @@
 package testsuite
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -23,9 +24,25 @@ func TestFeatures(t *testing.T) {
 }
 
 func InitializeScenario(sc *godog.ScenarioContext) {
-	tc := NewTestContext()
+	// Index test context for index-related tests
+	indexTC := NewTestContext()
+	InitializeIndexSteps(sc, indexTC)
 
-	InitializeSteps(sc, tc)
+	// Fsys test context for filesystem watching tests
+	fsysTC, err := NewFsysTestContext()
+	if err != nil {
+		panic(err)
+	}
+
+	// Cleanup after scenario
+	sc.After(func(ctx context.Context, sc *godog.Scenario, err error) (context.Context, error) {
+		if cleanupErr := fsysTC.Cleanup(); cleanupErr != nil {
+			return ctx, cleanupErr
+		}
+		return ctx, err
+	})
+
+	InitializeFsysSteps(sc, fsysTC)
 }
 
 func TestMain(m *testing.M) {
