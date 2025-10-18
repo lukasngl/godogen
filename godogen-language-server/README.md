@@ -19,11 +19,24 @@ go install github.com/lukasngl/godogen/godogen-language-server@latest
 
 ## Usage
 
-Start the language server using stdio transport:
+Start the language server:
 
 ```bash
+# Default (errors only)
 godogen-language-server stdio
+
+# With debug logging
+godogen-language-server stdio --debug
+
+# Log to file
+godogen-language-server stdio --log-file /tmp/lsp.log
 ```
+
+### Logging Options
+
+- `--debug`, `-d`: Enable debug logging
+- `--log-file <path>`: Write logs to file (default: stderr)
+- Output format: JSON for structured filtering
 
 ## Configuration
 
