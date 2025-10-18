@@ -47,8 +47,8 @@ func (tc *TestContext) FindStepDefinitions(path string, line int) {
 }
 
 // FindStepReferences queries for step references at the given location.
-func (tc *TestContext) FindStepReferences(path string, line int) {
-	tc.results = tc.index.FindStepReferences(path, line)
+func (tc *TestContext) FindStepReferences(path string, line int, column int) {
+	tc.results = tc.index.FindStepReferences(path, line, column)
 }
 
 // GetResults returns the last query results.

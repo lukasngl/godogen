@@ -54,13 +54,23 @@ func (tc *TestContext) RequestStepDefinitions(path string, lineStr string) error
 	return nil
 }
 
-//godogen:when ^I request step references for (.+) line (\d+)$
-func (tc *TestContext) RequestStepReferences(path string, lineStr string) error {
+//godogen:when ^I request step references for (.+) line (\d+)()$
+//godogen:when ^I request step references for (.+) line (\d+) column (\d+)$
+func (tc *TestContext) RequestStepReferences(path string, lineStr string, columnStr string) error {
 	line, err := strconv.Atoi(lineStr)
 	if err != nil {
 		return fmt.Errorf("invalid line number: %s", lineStr)
 	}
-	tc.FindStepReferences(path, line)
+
+	column := 1 // Default to column 1 (beginning of line) if not specified
+	if columnStr != "" {
+		column, err = strconv.Atoi(columnStr)
+		if err != nil {
+			return fmt.Errorf("invalid column number: %s", columnStr)
+		}
+	}
+
+	tc.FindStepReferences(path, line, column)
 	return nil
 }
 

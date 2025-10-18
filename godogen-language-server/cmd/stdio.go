@@ -473,6 +473,7 @@ func (srv *Server) textDocumentReferences(
 	slog.Info("textDocumentReferences called",
 		"uri", params.TextDocument.URI,
 		"line", params.Position.Line,
+		"character", params.Position.Character,
 	)
 
 	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
@@ -481,7 +482,8 @@ func (srv *Server) textDocumentReferences(
 		return nil, nil
 	}
 
-	indexLocs := srv.index.FindStepReferences(path, int(params.Position.Line))
+	// LSP positions are 0-indexed, but our index uses 1-indexed columns
+	indexLocs := srv.index.FindStepReferences(path, int(params.Position.Line), int(params.Position.Character)+1)
 
 	var locs []protocol.Location
 	for _, loc := range indexLocs {
