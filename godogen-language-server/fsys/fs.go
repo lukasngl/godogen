@@ -68,7 +68,7 @@ func (w *Watcher) DiscoverAndWatch(ctx context.Context, root string, patterns []
 	w.patterns = patterns
 	w.watchedDirs = make(map[string]bool)
 
-	slog.Info("Discovering files", "root", root, "patterns", patterns)
+	slog.Debug("discovering files", "component", "fsys", "root", root, "patterns", patterns)
 
 	// Discover and watch files for each pattern
 	for _, pattern := range patterns {
@@ -78,7 +78,7 @@ func (w *Watcher) DiscoverAndWatch(ctx context.Context, root string, patterns []
 			resolvedPattern = filepath.Join(root, pattern)
 		}
 
-		slog.Info("Processing pattern", "pattern", pattern, "resolved", resolvedPattern)
+		slog.Debug("processing pattern", "component", "fsys", "pattern", pattern, "resolved", resolvedPattern)
 
 		// Get the base directory to watch (the part before any wildcards)
 		watchDir := getWatchDir(resolvedPattern)
@@ -86,16 +86,16 @@ func (w *Watcher) DiscoverAndWatch(ctx context.Context, root string, patterns []
 		// Add directory to watcher if not already watching
 		if !w.watchedDirs[watchDir] {
 			if err := w.watcher.Add(watchDir); err != nil {
-				slog.Warn("failed to add directory to watcher", "path", watchDir, "error", err)
+				slog.Debug("failed to watch directory", "component", "fsys", "path", watchDir, "error", err)
 				continue
 			}
 			w.watchedDirs[watchDir] = true
-			slog.Info("Watching directory", "path", watchDir)
+			slog.Debug("watching directory", "component", "fsys", "path", watchDir)
 		}
 
 		// Discover existing files matching this pattern
 		if err := w.discoverPattern(resolvedPattern); err != nil {
-			slog.Error("failed to discover files for pattern", "pattern", resolvedPattern, "error", err)
+			slog.Error("failed to discover files", "component", "fsys", "pattern", resolvedPattern, "error", err)
 		}
 	}
 
@@ -152,10 +152,10 @@ func (w *Watcher) discoverPattern(pattern string) error {
 			// Add directory to watcher if not already watching
 			if !w.watchedDirs[path] {
 				if err := w.watcher.Add(path); err != nil {
-					slog.Warn("failed to add directory to watcher", "path", path, "error", err)
+					slog.Debug("failed to watch directory", "component", "fsys", "path", path, "error", err)
 				} else {
 					w.watchedDirs[path] = true
-					slog.Info("Watching directory", "path", path)
+					slog.Debug("watching directory", "component", "fsys", "path", path)
 				}
 			}
 		}
@@ -180,14 +180,14 @@ func (w *Watcher) discoverPattern(pattern string) error {
 		return fmt.Errorf("invalid glob pattern %q: %w", pattern, err)
 	}
 
-	slog.Info("Pattern matched files", "pattern", pattern, "count", len(matches))
+	slog.Debug("pattern matched", "component", "fsys", "pattern", pattern, "count", len(matches))
 
 	for _, relMatch := range matches {
 		match := filepath.Join(base, relMatch)
 
 		info, err := os.Stat(match)
 		if err != nil {
-			slog.Warn("failed to stat matched file", "path", match, "error", err)
+			slog.Debug("failed to stat file", "component", "fsys", "path", match, "error", err)
 			continue
 		}
 
@@ -197,11 +197,11 @@ func (w *Watcher) discoverPattern(pattern string) error {
 			if ext == ".go" || ext == ".feature" {
 				content, err := os.ReadFile(match)
 				if err != nil {
-					slog.Error("failed to read file during discovery", "path", match, "error", err)
+					slog.Error("failed to read file", "component", "fsys", "path", match, "error", err)
 					continue
 				}
 				if err := w.onFileChanged(match, content); err != nil {
-					slog.Error("failed to index file during discovery", "path", match, "error", err)
+					slog.Error("failed to index file", "component", "fsys", "path", match, "error", err)
 				}
 			}
 		}
@@ -231,11 +231,11 @@ func (w *Watcher) discover(root string) error {
 			fullPath := filepath.Join(root, path)
 			content, err := os.ReadFile(fullPath)
 			if err != nil {
-				slog.Error("failed to read file during discovery", "path", fullPath, "error", err)
+				slog.Error("failed to read file", "component", "fsys", "path", fullPath, "error", err)
 				return nil
 			}
 			if err := w.onFileChanged(fullPath, content); err != nil {
-				slog.Error("failed to index file during discovery", "path", fullPath, "error", err)
+				slog.Error("failed to index file", "component", "fsys", "path", fullPath, "error", err)
 			}
 		}
 
@@ -252,7 +252,7 @@ func (w *Watcher) watch(ctx context.Context) {
 
 		case event, ok := <-w.watcher.Events:
 			if !ok {
-				slog.Info("file watcher events channel closed")
+				slog.Debug("watcher closed", "component", "fsys")
 				return
 			}
 
@@ -260,7 +260,7 @@ func (w *Watcher) watch(ctx context.Context) {
 
 			// Handle directory creation
 			if err == nil && fileinfo.IsDir() && event.Has(fsnotify.Create) {
-				slog.Info("Directory created", "path", event.Name)
+				slog.Debug("directory created", "component", "fsys", "path", event.Name)
 				w.handleNewDirectory(event.Name)
 				continue
 			}
@@ -278,7 +278,7 @@ func (w *Watcher) watch(ctx context.Context) {
 				continue
 			}
 
-			slog.Info("File event", "path", event.Name, "op", event.Op)
+			slog.Debug("file event", "component", "fsys", "path", event.Name, "op", event.Op.String(), "deleted", deleted)
 
 			if deleted {
 				w.onFileDeleted(event.Name)
@@ -290,21 +290,21 @@ func (w *Watcher) watch(ctx context.Context) {
 
 				content, err := os.ReadFile(event.Name)
 				if err != nil {
-					slog.Error("failed to read file", "path", event.Name, "error", err)
+					slog.Error("failed to read file", "component", "fsys", "path", event.Name, "error", err)
 					continue
 				}
 				if err := w.onFileChanged(event.Name, content); err != nil {
-					slog.Error("failed to index file", "path", event.Name, "error", err)
+					slog.Error("failed to index file", "component", "fsys", "path", event.Name, "error", err)
 				}
 			}
 
 		case err, ok := <-w.watcher.Errors:
 			if !ok {
-				slog.Info("file watcher errors channel closed")
+				slog.Debug("watcher closed", "component", "fsys")
 				return
 			}
 
-			slog.Error("file watcher error", "error", err)
+			slog.Error("watcher error", "component", "fsys", "error", err)
 		}
 	}
 }
@@ -315,7 +315,7 @@ func (w *Watcher) handleNewDirectory(dirPath string) {
 	// Walk the new directory tree and add all directories to the watcher
 	filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			slog.Warn("failed to walk new directory", "dir", dirPath, "path", path, "error", err)
+			slog.Debug("failed to walk directory", "component", "fsys", "dir", dirPath, "path", path, "error", err)
 			return nil // Continue walking despite errors
 		}
 
@@ -323,10 +323,10 @@ func (w *Watcher) handleNewDirectory(dirPath string) {
 			// Add directory to watcher
 			if !w.watchedDirs[path] {
 				if err := w.watcher.Add(path); err != nil {
-					slog.Warn("failed to add new directory to watcher", "path", path, "error", err)
+					slog.Debug("failed to watch directory", "component", "fsys", "path", path, "error", err)
 				} else {
 					w.watchedDirs[path] = true
-					slog.Info("Watching new directory", "path", path)
+					slog.Debug("watching directory", "component", "fsys", "path", path)
 				}
 			}
 		} else if d.Type().IsRegular() {
@@ -337,11 +337,11 @@ func (w *Watcher) handleNewDirectory(dirPath string) {
 				if w.matchesAnyPattern(path) {
 					content, err := os.ReadFile(path)
 					if err != nil {
-						slog.Error("failed to read file in new directory", "path", path, "error", err)
+						slog.Error("failed to read file", "component", "fsys", "path", path, "error", err)
 						return nil
 					}
 					if err := w.onFileChanged(path, content); err != nil {
-						slog.Error("failed to index file in new directory", "path", path, "error", err)
+						slog.Error("failed to index file", "component", "fsys", "path", path, "error", err)
 					}
 				}
 			}
