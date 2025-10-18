@@ -127,9 +127,42 @@ go tool godogen-lint [-fix] ./...
 
 Integration with golangci-lint is pending at [lukasngl/golangci-lint](https://github.com/lukasngl/golangci-lint).
 
+## Language Server
+
+godogen includes a Language Server Protocol (LSP) implementation that provides IDE features for Gherkin feature files and Go step definitions.
+
+**Features:**
+- Go to Definition (feature step → pattern comment)
+- Go to Implementation (feature step → function)
+- Find References (pattern/function → feature steps)
+- Diagnostics (validation errors)
+- Code Actions (quick fixes)
+- Completion (Gherkin keywords)
+
+**Installation:**
+```bash
+go install github.com/lukasngl/godogen/godogen-language-server@latest
+```
+
+See [godogen-language-server](./godogen-language-server) for full documentation and configuration options.
+
 ## Editor Integration
 
-### Neovim / Tree-sitter
+### Language Server (LSP)
+
+See [godogen-language-server](./godogen-language-server/README.md) for detailed setup instructions.
+
+**Quick Start - Neovim:**
+```lua
+require('lspconfig').godogen.setup({
+  cmd = { 'godogen-language-server', 'stdio' },
+  filetypes = { 'feature', 'gherkin' },
+})
+```
+
+**VS Code:** Extension coming soon.
+
+### Syntax Highlighting (Neovim/Tree-sitter)
 
 To enable regex syntax highlighting for godogen directive patterns in Neovim, add the following injection query to `~/.config/nvim/after/queries/go/injections.scm`:
 
