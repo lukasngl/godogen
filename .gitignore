@@ -6,7 +6,8 @@
 /testdata
 
 # Binaries
+/dist
 /godogen
-/godogen-lint
-/gcl-plugin/custom-gcl
-godogen-language-server/godogen-language-server
+/godogen-gcl/custom-gcl
+/godogen-language-server/godogen-language-server
+/godogen-lint/godogen-lint

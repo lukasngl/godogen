@@ -1,16 +1,19 @@
 package testsuite
 
 import (
-	"context"
-	"os"
 	"testing"
 
 	"github.com/cucumber/godog"
+	"github.com/lukasngl/godogen/godogen-language-server/fsys/fsystest"
+	"github.com/lukasngl/godogen/godogen-language-server/index/indextest"
 )
 
 func TestFeatures(t *testing.T) {
 	suite := godog.TestSuite{
-		ScenarioInitializer: InitializeScenario,
+		ScenarioInitializer: func(sc *godog.ScenarioContext) {
+			indextest.InitializeSteps(sc, indextest.NewTestContext())
+			fsystest.InitializeSteps(sc, fsystest.MustNewTestContext())
+		},
 		Options: &godog.Options{
 			Format:   "pretty",
 			Paths:    []string{"../features"},
@@ -21,30 +24,4 @@ func TestFeatures(t *testing.T) {
 	if suite.Run() != 0 {
 		t.Fatal("non-zero status returned, failed to run feature tests")
 	}
-}
-
-func InitializeScenario(sc *godog.ScenarioContext) {
-	// Index test context for index-related tests
-	indexTC := NewTestContext()
-	InitializeIndexSteps(sc, indexTC)
-
-	// Fsys test context for filesystem watching tests
-	fsysTC, err := NewFsysTestContext()
-	if err != nil {
-		panic(err)
-	}
-
-	// Cleanup after scenario
-	sc.After(func(ctx context.Context, sc *godog.Scenario, err error) (context.Context, error) {
-		if cleanupErr := fsysTC.Cleanup(); cleanupErr != nil {
-			return ctx, cleanupErr
-		}
-		return ctx, err
-	})
-
-	InitializeFsysSteps(sc, fsysTC)
-}
-
-func TestMain(m *testing.M) {
-	os.Exit(m.Run())
 }

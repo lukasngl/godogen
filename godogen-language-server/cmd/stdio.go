@@ -62,7 +62,7 @@ func setupLogging(debug bool, logFile string) error {
 	}
 
 	// Determine output destination
-	var writer *os.File = os.Stderr
+	writer := os.Stderr
 	if logFile != "" {
 		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {
@@ -274,7 +274,7 @@ func (srv *Server) textDocumentDidClose(
 	return nil
 }
 
-// returns DocumentDiagnosticReport = RelatedFullDocumentDiagnosticReport | RelatedUnchangedDocumentDiagnosticReport
+// returns DocumentDiagnosticReport = RelatedFullDocumentDiagnosticReport | RelatedUnchangedDocumentDiagnosticReport.
 func (srv *Server) textDocumentDiagnostic(
 	_ *glsp.Context,
 	params *protocol17.DocumentDiagnosticParams,
@@ -316,7 +316,7 @@ func (srv *Server) textDocumentDiagnostic(
 	}, nil
 }
 
-// Returns: Command | []CodeAction | nil
+// Returns: Command | []CodeAction | nil.
 func (srv *Server) textDocumentCodeAction(
 	_ *glsp.Context,
 	params *protocol.CodeActionParams,
@@ -388,7 +388,7 @@ func (srv *Server) textDocumentCodeAction(
 	return actions, nil
 }
 
-// Returns: []CompletionItem | CompletionList | nil
+// Returns: []CompletionItem | CompletionList | nil.
 func (srv *Server) textDocumentCompletion(
 	_ *glsp.Context,
 	params *protocol.CompletionParams,
@@ -450,7 +450,7 @@ func (srv *Server) textDocumentCompletion(
 	return candidates, nil
 }
 
-// Returns: Location | []Location | []LocationLink | nil
+// Returns: Location | []Location | []LocationLink | nil.
 func (srv *Server) textDocumentImplementation(
 	_ *glsp.Context,
 	params *protocol.ImplementationParams,
@@ -458,7 +458,7 @@ func (srv *Server) textDocumentImplementation(
 	return srv.getDefinitions(false, params.Position, params.TextDocument)
 }
 
-// Returns: Location | []Location | []LocationLink | nil
+// Returns: Location | []Location | []LocationLink | nil.
 func (srv *Server) textDocumentDefinition(
 	_ *glsp.Context,
 	params *protocol.DefinitionParams,
@@ -543,7 +543,7 @@ func box[T any](v T) *T {
 // loadConfig loads configuration with the following precedence:
 // 1. LSP initialization options (highest priority)
 // 2. .godogen-language-server.json in workspace root
-// 3. Default values (lowest priority)
+// 3. Default values (lowest priority).
 func loadConfig(workspaceRoot string, lspOptions any) Config {
 	// Start with defaults
 	config := Config{

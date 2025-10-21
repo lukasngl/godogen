@@ -1,4 +1,4 @@
-package testsuite
+package indextest
 
 import (
 	"github.com/lukasngl/godogen/godogen-language-server/index"

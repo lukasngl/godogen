@@ -1,4 +1,4 @@
-package testsuite
+package fsystest
 
 import (
 	"context"
@@ -12,8 +12,8 @@ import (
 	"github.com/lukasngl/godogen/godogen-language-server/index"
 )
 
-// FsysTestContext holds the state for filesystem watcher testing.
-type FsysTestContext struct {
+// TestContext holds the state for filesystem watcher testing.
+type TestContext struct {
 	// Test filesystem
 	tempDir string
 	// fsnotify watcher for test assertions
@@ -34,8 +34,18 @@ type FsysTestContext struct {
 	cancel context.CancelFunc
 }
 
+// MustNewFsysTestContext creates a new filesystem test context or panics on error.
+func MustNewTestContext() *TestContext {
+	tc, err := NewTestContext()
+	if err != nil {
+		panic(err)
+	}
+
+	return tc
+}
+
 // NewFsysTestContext creates a new filesystem test context.
-func NewFsysTestContext() (*FsysTestContext, error) {
+func NewTestContext() (*TestContext, error) {
 	tempDir, err := os.MkdirTemp("", "godogen-fsys-test-*")
 	if err != nil {
 		return nil, err
@@ -44,7 +54,7 @@ func NewFsysTestContext() (*FsysTestContext, error) {
 	idx := index.NewIndex()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	tc := &FsysTestContext{
+	tc := &TestContext{
 		tempDir:        tempDir,
 		index:          idx,
 		patterns:       []string{},
@@ -71,7 +81,7 @@ func NewFsysTestContext() (*FsysTestContext, error) {
 }
 
 // Cleanup removes temporary files and closes the watcher.
-func (tc *FsysTestContext) Cleanup() error {
+func (tc *TestContext) Cleanup() error {
 	if tc.cancel != nil {
 		tc.cancel()
 	}
@@ -85,7 +95,7 @@ func (tc *FsysTestContext) Cleanup() error {
 }
 
 // onFileChanged is called when a file is indexed.
-func (tc *FsysTestContext) onFileChanged(path string, content []byte) error {
+func (tc *TestContext) onFileChanged(path string, content []byte) error {
 	relPath, _ := filepath.Rel(tc.tempDir, path)
 
 	tc.mu.Lock()
@@ -108,7 +118,7 @@ func (tc *FsysTestContext) onFileChanged(path string, content []byte) error {
 }
 
 // onFileDeleted is called when a file is deleted.
-func (tc *FsysTestContext) onFileDeleted(path string) {
+func (tc *TestContext) onFileDeleted(path string) {
 	relPath, _ := filepath.Rel(tc.tempDir, path)
 
 	tc.mu.Lock()
@@ -126,12 +136,12 @@ func (tc *FsysTestContext) onFileDeleted(path string) {
 }
 
 // AddPattern adds a watch pattern.
-func (tc *FsysTestContext) AddPattern(pattern string) {
+func (tc *TestContext) AddPattern(pattern string) {
 	tc.patterns = append(tc.patterns, pattern)
 }
 
 // CreateFile creates a file in the test filesystem.
-func (tc *FsysTestContext) CreateFile(path string, content []byte) error {
+func (tc *TestContext) CreateFile(path string, content []byte) error {
 	fullPath := filepath.Join(tc.tempDir, path)
 	dir := filepath.Dir(fullPath)
 
@@ -143,19 +153,19 @@ func (tc *FsysTestContext) CreateFile(path string, content []byte) error {
 }
 
 // CreateDirectory creates a directory in the test filesystem.
-func (tc *FsysTestContext) CreateDirectory(path string) error {
+func (tc *TestContext) CreateDirectory(path string) error {
 	fullPath := filepath.Join(tc.tempDir, path)
 	return os.MkdirAll(fullPath, 0o755)
 }
 
 // RunDiscovery runs the discovery process.
-func (tc *FsysTestContext) RunDiscovery() error {
+func (tc *TestContext) RunDiscovery() error {
 	return tc.watcher.DiscoverAndWatch(tc.ctx, tc.tempDir, tc.patterns)
 }
 
 // eventually waits for a condition to become true with tight polling interval.
 // Uses 1ms interval and 100ms timeout for local filesystem operations.
-func (tc *FsysTestContext) eventually(check func() bool) bool {
+func (tc *TestContext) eventually(check func() bool) bool {
 	timeout := time.After(100 * time.Millisecond)
 	tick := time.Tick(1 * time.Millisecond)
 
@@ -172,7 +182,7 @@ func (tc *FsysTestContext) eventually(check func() bool) bool {
 }
 
 // IsFileIndexed checks if a file was indexed (with eventual consistency).
-func (tc *FsysTestContext) IsFileIndexed(path string) bool {
+func (tc *TestContext) IsFileIndexed(path string) bool {
 	return tc.eventually(func() bool {
 		tc.mu.RLock()
 		defer tc.mu.RUnlock()
@@ -181,7 +191,7 @@ func (tc *FsysTestContext) IsFileIndexed(path string) bool {
 }
 
 // IsFileReindexed checks if a file was reindexed (with eventual consistency).
-func (tc *FsysTestContext) IsFileReindexed(path string) bool {
+func (tc *TestContext) IsFileReindexed(path string) bool {
 	return tc.eventually(func() bool {
 		tc.mu.RLock()
 		defer tc.mu.RUnlock()
@@ -190,7 +200,7 @@ func (tc *FsysTestContext) IsFileReindexed(path string) bool {
 }
 
 // IsFileDeleted checks if a file was deleted from index (with eventual consistency).
-func (tc *FsysTestContext) IsFileDeleted(path string) bool {
+func (tc *TestContext) IsFileDeleted(path string) bool {
 	return tc.eventually(func() bool {
 		tc.mu.RLock()
 		defer tc.mu.RUnlock()
@@ -199,7 +209,7 @@ func (tc *FsysTestContext) IsFileDeleted(path string) bool {
 }
 
 // IsDirectoryWatched checks if a directory is being watched (with eventual consistency).
-func (tc *FsysTestContext) IsDirectoryWatched(path string) bool {
+func (tc *TestContext) IsDirectoryWatched(path string) bool {
 	fullPath := filepath.Join(tc.tempDir, path)
 	return tc.eventually(func() bool {
 		watchList := tc.fsWatcher.WatchList()

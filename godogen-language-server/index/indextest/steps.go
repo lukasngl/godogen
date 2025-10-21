@@ -1,5 +1,5 @@
-//go:generate go tool godogen .
-package testsuite
+//go:generate go tool godogen
+package indextest
 
 import (
 	"fmt"

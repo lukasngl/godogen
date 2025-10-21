@@ -65,7 +65,7 @@ Feature: Diagnostics
       Then I get 0 diagnostics
 
   Rule: Parameter count matching
-                                                                                    Regex groups must match function parameters
+                                                                                                                            Regex groups must match function parameters
 
     Scenario: Too few parameters
       When steps.go is added to the workspace:
@@ -103,7 +103,7 @@ Feature: Diagnostics
       Then I get 0 diagnostics
 
   Rule: Function signature validation
-    Step functions must have valid parameter and return types
+                                            Step functions must have valid parameter and return types
 
     Scenario: Invalid parameter type
       When steps.go is added to the workspace:
@@ -180,7 +180,7 @@ Feature: Diagnostics
       Then I get 0 diagnostics
 
   Rule: Workspace file preference
-    Workspace files used for diagnostics
+                                            Workspace files used for diagnostics
 
     Scenario: Workspace diagnostics override disk diagnostics
       When steps.go is added to the filesystem:

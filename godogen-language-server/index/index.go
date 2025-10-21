@@ -14,7 +14,7 @@ import (
 	gherkin "github.com/cucumber/gherkin/go/v36"
 	messages "github.com/cucumber/messages/go/v30"
 	"github.com/google/uuid"
-	"github.com/lukasngl/godogen"
+	godogen "github.com/lukasngl/godogen/pkg"
 )
 
 // Index maintains an in-memory index of feature files and Go step definition files.
@@ -520,7 +520,7 @@ func (index *Index) FindStepDefinitions(featurePath string, line int, patternLoc
 // Column is 1-indexed (1 = first character of line).
 // Returns references only if the cursor is on:
 // - A pattern comment (//godogen:...), or
-// - The function name (not the func keyword, parameters, return type, or body)
+// - The function name (not the func keyword, parameters, return type, or body).
 func (index *Index) FindStepReferences(goPath string, line int, column int) []Location {
 	index.mx.RLock()
 	defer index.mx.RUnlock()
