@@ -123,6 +123,7 @@ func main() {
 
 	if *help {
 		_, _ = io.WriteString(flag.CommandLine.Output(), usage)
+
 		os.Exit(0)
 	}
 
@@ -144,6 +145,7 @@ func run() error {
 	}
 
 	hasErr := false
+
 	for filepath, goFile := range files {
 		if isGenerated(goFile) {
 			continue
@@ -152,6 +154,7 @@ func run() error {
 		err = genFile(fset, filepath, goFile)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
+
 			hasErr = true
 		}
 	}

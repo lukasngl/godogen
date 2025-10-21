@@ -17,6 +17,7 @@ Then use as `go tool godogen`.
 Similar to Java's Cucumber annotations, godogen allows you to colocate test step patterns with their implementations:
 
 **Java (Cucumber):**
+
 ```java
 @Given("there are {int} godogs")
 public void thereAreGodogs(int count) {
@@ -25,6 +26,7 @@ public void thereAreGodogs(int count) {
 ```
 
 **Go (godogen):**
+
 ```go
 //godogen:given ^there are (\d+) godogs$
 func (s *GodogsState) thereAreGodogs(available int) {
@@ -93,7 +95,7 @@ func InitializeGodogSteps(ctx *godog.ScenarioContext, r1 *GodogsState) {
 ## Features
 
 - colocate step definition (i.e. the function or method declaration) with the pattern,
-using the following directives on a function or method named `<FUNCTION>`:
+  using the following directives on a function or method named `<FUNCTION>`:
   - `//godogen:step <PATTERN>` will generate `ctx.Step(<PATTERN>, <FUNCTION>)`
   - `//godogen:given <PATTERN>` will generate `ctx.Given(<PATTERN>, <FUNCTION>)`
   - `//godogen:when <PATTERN>` will generate `ctx.When(<PATTERN>, <FUNCTION>)`
@@ -116,11 +118,13 @@ godogen includes a linter that validates your godogen directives and step defini
 - **Directive validation**: prevents mixing hook and step directives on the same function
 
 **Installation:**
+
 ```bash
 go get -tool github.com/lukasngl/godogen/cmd/godogen-lint@latest
 ```
 
 **Usage:**
+
 ```bash
 go tool godogen-lint [-fix] ./...
 ```
@@ -132,6 +136,7 @@ Integration with golangci-lint is pending at [lukasngl/golangci-lint](https://gi
 godogen includes a Language Server Protocol (LSP) implementation that provides IDE features for Gherkin feature files and Go step definitions.
 
 **Features:**
+
 - Go to Definition (feature step → pattern comment)
 - Go to Implementation (feature step → function)
 - Find References (pattern/function → feature steps)
@@ -140,6 +145,7 @@ godogen includes a Language Server Protocol (LSP) implementation that provides I
 - Completion (Gherkin keywords)
 
 **Installation:**
+
 ```bash
 go install github.com/lukasngl/godogen/godogen-language-server@latest
 ```
@@ -153,6 +159,7 @@ See [godogen-language-server](./godogen-language-server) for full documentation 
 See [godogen-language-server](./godogen-language-server/README.md) for detailed setup instructions.
 
 **Quick Start - Neovim:**
+
 ```lua
 require('lspconfig').godogen.setup({
   cmd = { 'godogen-language-server', 'stdio' },
@@ -187,7 +194,6 @@ To enable regex syntax highlighting for godogen directive patterns in Neovim, ad
         (interpreted_string_literal_content) @injection.content)
     ])
   (#set! injection.language "regex"))
-
 ```
 
 [godog]: https://github.com/cucumber/godog

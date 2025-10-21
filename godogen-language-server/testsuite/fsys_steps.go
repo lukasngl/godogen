@@ -56,7 +56,7 @@ func (tc *FsysTestContext) FileIsModified(path string) error {
 	}
 
 	// Real filesystem operation - fsnotify will detect it
-	return os.WriteFile(fullPath, content, 0644)
+	return os.WriteFile(fullPath, content, 0o644)
 }
 
 //godogen:when ^file "([^"]+)" is deleted$

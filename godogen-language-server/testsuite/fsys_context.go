@@ -135,17 +135,17 @@ func (tc *FsysTestContext) CreateFile(path string, content []byte) error {
 	fullPath := filepath.Join(tc.tempDir, path)
 	dir := filepath.Dir(fullPath)
 
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 
-	return os.WriteFile(fullPath, content, 0644)
+	return os.WriteFile(fullPath, content, 0o644)
 }
 
 // CreateDirectory creates a directory in the test filesystem.
 func (tc *FsysTestContext) CreateDirectory(path string) error {
 	fullPath := filepath.Join(tc.tempDir, path)
-	return os.MkdirAll(fullPath, 0755)
+	return os.MkdirAll(fullPath, 0o755)
 }
 
 // RunDiscovery runs the discovery process.

@@ -1,0 +1,64 @@
+# run with treefmt --allow-missing-formatter
+
+[global]
+excludes = [
+  "**/*_gen.go",
+  "**/testsuite/*_initialize.go",
+  ".go/**",
+]
+
+### Misc
+
+[formatter.dprint]
+command = "dprint"
+options = ["fmt"]
+includes = [
+  "*.graphql",
+  "*.html",
+  "*.css",
+  "*.yaml",
+  "*.yml",
+  "*.js",
+  "*.json",
+  "*.md",
+  "*.toml",
+]
+excludes = [".release-please-manifest.json"]
+
+### Justfile
+
+[formatter.justfile]
+command = "just"
+options = ["--unstable", "--fmt", "--justfile"]
+includes = ["justfile", "Justfile"]
+
+### Go
+
+[formatter.gofumpt]
+command = "gofumpt"
+options = ["-w"]
+includes = ["*.go"]
+
+[formatter.gci]
+command = "gci"
+options = ["write"]
+includes = ["*.go"]
+priority = 2 # run after goimports
+
+[formatter.goimports]
+command = "goimports"
+options = ["-w"]
+includes = ["*.go"]
+priority = 1 # run after gofumpt
+
+### Shell
+
+[formatter.shellcheck]
+command = "shellcheck"
+includes = ["*.sh"]
+
+[formatter.shfmt]
+command = "shfmt"
+options = ["-s", "-w"]
+includes = ["*.sh", ".envrc"]
+priority = 1 # run after shellcheck

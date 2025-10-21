@@ -64,7 +64,7 @@ func setupLogging(debug bool, logFile string) error {
 	// Determine output destination
 	var writer *os.File = os.Stderr
 	if logFile != "" {
-		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {
 			return fmt.Errorf("failed to open log file: %w", err)
 		}
