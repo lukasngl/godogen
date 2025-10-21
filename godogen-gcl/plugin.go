@@ -2,9 +2,8 @@ package gclplugin
 
 import (
 	"github.com/golangci/plugin-module-register/register"
-	"golang.org/x/tools/go/analysis"
-
 	godogen "github.com/lukasngl/godogen/godogen-lint/pkg"
+	"golang.org/x/tools/go/analysis"
 )
 
 func init() {
