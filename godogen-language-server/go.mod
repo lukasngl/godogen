@@ -2,24 +2,24 @@ module github.com/lukasngl/godogen/godogen-language-server
 
 go 1.25.1
 
-replace github.com/lukasngl/godogen v0.0.0 => ../
+replace github.com/lukasngl/godogen => ../
 
-tool github.com/lukasngl/godogen/cmd/godogen
+tool github.com/lukasngl/godogen
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.9.1
 	github.com/cucumber/gherkin/go/v36 v36.0.0
 	github.com/cucumber/godog v0.15.1
 	github.com/cucumber/messages/go/v30 v30.1.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/google/uuid v1.6.0
-	github.com/lukasngl/godogen v0.0.0
+	github.com/lukasngl/godogen v0.0.0-00010101000000-000000000000
 	github.com/spf13/cobra v1.10.1
 	github.com/tliron/glsp v0.2.3-0.20250617204849-59d6e3155c81
 )
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/bmatcuk/doublestar/v4 v4.9.1 // indirect
 	github.com/cucumber/gherkin/go/v26 v26.2.0 // indirect
 	github.com/cucumber/messages/go/v21 v21.0.1 // indirect
 	github.com/gofrs/uuid v4.3.1+incompatible // indirect
@@ -45,5 +45,4 @@ require (
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect
 	golang.org/x/term v0.35.0 // indirect
-	golang.org/x/tools v0.36.0 // indirect
 )

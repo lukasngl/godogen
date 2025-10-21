@@ -17,12 +17,16 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/iancoleman/strcase"
-	"github.com/lukasngl/godogen"
+	godogen "github.com/lukasngl/godogen/pkg"
 )
 
 var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+
 	help         = flag.Bool("help", false, "show help message")
+	versionFlag  = flag.Bool("version", false, "show version information")
 	verbose      = flag.Bool("verbose", false, "enable verbose output")
 	input        = flag.String("input", "./", "input file of package")
 	outputSuffix = flag.String("suffix", "_initialize.go", "suffix to append to input filename")
@@ -120,6 +124,11 @@ type File struct {
 
 func main() {
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("godogen-gen %s (commit: %s, built: %s)\n", version, commit, date)
+		os.Exit(0)
+	}
 
 	if *help {
 		_, _ = io.WriteString(flag.CommandLine.Output(), usage)
@@ -220,7 +229,7 @@ func genFile(fset *token.FileSet, path string, input *ast.File) error {
 	file := &File{
 		Filepath:  path,
 		Package:   input.Name.Name,
-		Name:      strcase.ToCamel(slug),
+		Name:      toCamel(slug),
 		StepFuncs: stepFuncs,
 	}
 
@@ -364,4 +373,17 @@ func setupLogger(verbose bool) {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: level,
 	})))
+}
+
+// toCamel converts a snake_case, kebab-case, or space-separated string to CamelCase (PascalCase).
+func toCamel(s string) string {
+	s = strings.ReplaceAll(s, "-", "_")
+	s = strings.ReplaceAll(s, " ", "_")
+	parts := strings.Split(s, "_")
+	for i, part := range parts {
+		if len(part) > 0 {
+			parts[i] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+		}
+	}
+	return strings.Join(parts, "")
 }

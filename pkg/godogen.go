@@ -11,9 +11,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-
-	"github.com/iancoleman/strcase"
-	"golang.org/x/tools/go/analysis"
 )
 
 type (
@@ -62,7 +59,18 @@ type (
 		// Message is the description of the error.
 		Message string
 		// SuggestedFix is an optional replacement text to fix the error.
-		SuggestedFixes []analysis.SuggestedFix
+		SuggestedFixes []SuggestedFix
+	}
+	// SuggestedFix represents a suggested code fix for an error.
+	SuggestedFix struct {
+		Message   string
+		TextEdits []TextEdit
+	}
+	// TextEdit represents a single text replacement.
+	TextEdit struct {
+		Pos     token.Pos
+		End     token.Pos
+		NewText []byte
 	}
 	Receiver struct {
 		// Node is the AST node where the error occurred.
@@ -164,20 +172,20 @@ func (visitor *fileVisitor) visitComment(
 		stepFunc.StepHooks = append(stepFunc.StepHooks, Hook{
 			Node:     comment,
 			Function: stepFunc.Function,
-			Kind:     strcase.ToCamel(strings.TrimSuffix(directive, "_step")),
+			Kind:     toCamel(strings.TrimSuffix(directive, "_step")),
 		})
 
 	case "before", "after":
 		stepFunc.Hooks = append(stepFunc.Hooks, Hook{
 			Node:     comment,
 			Function: stepFunc.Function,
-			Kind:     strcase.ToCamel(directive),
+			Kind:     toCamel(directive),
 		})
 
 	case "step", "given", "when", "then":
 		stepFunc.Steps = append(stepFunc.Steps, Step{
 			Node:    comment,
-			Kind:    strcase.ToCamel(directive),
+			Kind:    toCamel(directive),
 			Pattern: pattern,
 		})
 
@@ -450,15 +458,28 @@ func (step *Step) checkAnchors() (Error, bool) {
 	return Error{
 		Node:    step.Node,
 		Message: "The pattern should start with '^' and end with '$'",
-		SuggestedFixes: []analysis.SuggestedFix{{
+		SuggestedFixes: []SuggestedFix{{
 			Message: "Add missing anchors",
-			TextEdits: []analysis.TextEdit{{
+			TextEdits: []TextEdit{{
 				Pos:     step.Node.Pos(),
 				End:     step.Node.End(),
 				NewText: []byte(fixedPattern),
 			}},
 		}},
 	}, true
+}
+
+// toCamel converts a snake_case, kebab-case, or space-separated string to CamelCase (PascalCase).
+func toCamel(s string) string {
+	s = strings.ReplaceAll(s, "-", "_")
+	s = strings.ReplaceAll(s, " ", "_")
+	parts := strings.Split(s, "_")
+	for i, part := range parts {
+		if len(part) > 0 {
+			parts[i] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+		}
+	}
+	return strings.Join(parts, "")
 }
 
 func exprToString(fset *token.FileSet, expr ast.Expr) string {

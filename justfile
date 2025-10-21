@@ -5,22 +5,31 @@ default:
 
 check: build check-fmt check-gen check-tidy lint test
 
-build: build-godogen build-godogen-language-server build-godogen-lint
+build: build-godogen build-godogen-language-server build-godogen-lint build-godogen-gcl
 
 test *gotestflags="":
     just _test "." {{ gotestflags }}
+    just _test "godogen-lint" {{ gotestflags }}
+    just _test "godogen-language-server" {{ gotestflags }}
 
 lint *gclflags:
     just _lint "." {{ gclflags }}
+    just _lint "godogen-lint" {{ gclflags }}
+    just _lint "godogen-gcl" {{ gclflags }}
+    just _lint "godogen-language-server" {{ gclflags }}
 
 tidy:
     just _tidy "."
+    just _tidy "godogen-lint"
+    just _tidy "godogen-gcl"
+    just _tidy "godogen-language-server"
 
 check-tidy:
     ./hack/group.sh "🧹" "checking go mod tidy" ./hack/error-on-diff.sh just tidy
 
 gen:
     just _gen "."
+    just _gen "godogen-language-server"
 
 check-gen:
     ./hack/group.sh "⚡" "checking generated code" ./hack/error-on-diff.sh just gen
@@ -40,26 +49,16 @@ fix: tidy gen fmt (lint "--fix")
 ### Tool Builds
 
 build-godogen:
-    #!/usr/bin/env sh
-    set -e
-    export PATH="$(pwd)/hack/:$PATH"
-    group.sh "🔨" "building godogen" \
-        go build -o godogen .
+    just _build "."
 
 build-godogen-language-server:
-    #!/usr/bin/env sh
-    set -e
-    export PATH="$(pwd)/hack/:$PATH"
-    cd godogen-language-server
-    group.sh "🔨" "building godogen-language-server" \
-        go build -o ../godogen-language-server .
+    just _build "godogen-language-server"
 
 build-godogen-lint:
-    #!/usr/bin/env sh
-    set -e
-    export PATH="$(pwd)/hack/:$PATH"
-    group.sh "🔨" "building godogen-lint" \
-        go build -o godogen-lint ./cmd/godogen-lint
+    just _build "godogen-lint"
+
+build-godogen-gcl:
+    just _build "godogen-gcl"
 
 ### Helpers
 

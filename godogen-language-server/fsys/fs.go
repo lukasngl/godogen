@@ -62,7 +62,7 @@ func NewWatcherWithFsnotify(
 
 // DiscoverAndWatch discovers all existing files matching the patterns and starts watching for changes.
 // Patterns can be absolute or relative to the root directory.
-// Examples: "**/*_steps.go", "../shared-steps/**/*.go", "/absolute/path/**/*.feature"
+// Examples: "**/*_steps.go", "../shared-steps/**/*.go", "/absolute/path/**/*.feature".
 func (w *Watcher) DiscoverAndWatch(ctx context.Context, root string, patterns []string) error {
 	w.root = root
 	w.patterns = patterns
@@ -106,7 +106,7 @@ func (w *Watcher) DiscoverAndWatch(ctx context.Context, root string, patterns []
 }
 
 // getWatchDir returns the directory component before any glob wildcards.
-// Example: "/path/to/**/*.go" -> "/path/to"
+// Example: "/path/to/**/*.go" -> "/path/to".
 func getWatchDir(pattern string) string {
 	cleaned := filepath.Clean(pattern)
 

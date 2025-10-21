@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/lukasngl/godogen"
+	godogen "github.com/lukasngl/godogen/godogen-lint/pkg"
 	"golang.org/x/tools/go/analysis/singlechecker"
 )
 

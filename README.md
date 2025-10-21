@@ -4,13 +4,26 @@ Now with Methods! 🎉
 
 godogen is golang codegenerator, that allows you to colocate [godog] step definitions with their pattern.
 
+## Project Structure
+
+This repository is organized as a monorepo containing multiple tools:
+
+- **`godogen-gen/`** - Code generator for godog step definitions
+- **`godogen-lint/`** - Standalone linter for validating godogen directives
+- **`godogen-gcl/`** - golangci-lint plugin
+- **`godogen-language-server/`** - LSP server for IDE integration
+
 ## Installation
 
 ```bash
-go get -tool github.com/lukasngl/godogen@latest
+go install github.com/lukasngl/godogen/godogen-gen@latest
 ```
 
-Then use as `go tool godogen`.
+Or run directly:
+
+```bash
+go run github.com/lukasngl/godogen/godogen-gen@latest
+```
 
 ## Motivation
 
@@ -41,7 +54,7 @@ This approach keeps your test definitions close to their patterns, making them e
 ```go
 // file: godog_steps.go
 package godogs
-//go:generate go tool godogen
+//go:generate go run github.com/lukasngl/godogen/godogen-gen@latest
 
 import (
 	"fmt"
@@ -120,16 +133,25 @@ godogen includes a linter that validates your godogen directives and step defini
 **Installation:**
 
 ```bash
-go get -tool github.com/lukasngl/godogen/cmd/godogen-lint@latest
+go install github.com/lukasngl/godogen/godogen-lint@latest
 ```
 
 **Usage:**
 
 ```bash
-go tool godogen-lint [-fix] ./...
+godogen-lint [-fix] ./...
 ```
 
-Integration with golangci-lint is pending at [lukasngl/golangci-lint](https://github.com/lukasngl/golangci-lint).
+**golangci-lint plugin:**
+
+```bash
+# Build the plugin
+cd godogen-gcl
+go build -o godogen-gcl.so .
+
+# Use with golangci-lint
+golangci-lint run --load=./godogen-gcl.so
+```
 
 ## Language Server
 
