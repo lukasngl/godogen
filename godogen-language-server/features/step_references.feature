@@ -290,14 +290,14 @@ Feature: Finding step references
       Then I get <count> results
 
       Examples:
-        | scenario                     | column | count |
-        | func keyword                 | 1      | 0     |
-        | start of function name       | 6      | 1     |
-        | middle of function name      | 10     | 1     |
-        | end of function name         | 15     | 1     |
-        | opening parenthesis          | 16     | 0     |
-        | return type                  | 25     | 0     |
-        | opening brace                | 32     | 0     |
+        | scenario                | column | count |
+        | func keyword            | 1      | 0     |
+        | start of function name  | 6      | 1     |
+        | middle of function name | 10     | 1     |
+        | end of function name    | 15     | 1     |
+        | opening parenthesis     | 16     | 0     |
+        | return type             | 25     | 0     |
+        | opening brace           | 32     | 0     |
 
     Scenario Outline: Clicking on <scenario> of multi-line function
       When steps.go is added to the workspace:
@@ -319,16 +319,16 @@ Feature: Finding step references
       Then I get <count> results
 
       Examples:
-        | scenario                     | line | column | count |
-        | func keyword                 | 3    | 1      | 0     |
-        | start of function name       | 3    | 6      | 1     |
-        | middle of function name      | 3    | 10     | 1     |
-        | end of function name         | 3    | 15     | 1     |
-        | opening parenthesis          | 3    | 16     | 0     |
-        | closing parenthesis          | 3    | 17     | 0     |
-        | opening brace                | 3    | 19     | 0     |
-        | function body                | 4    | 5      | 0     |
-        | closing brace                | 5    | 1      | 0     |
+        | scenario                | line | column | count |
+        | func keyword            | 3    | 1      | 0     |
+        | start of function name  | 3    | 6      | 1     |
+        | middle of function name | 3    | 10     | 1     |
+        | end of function name    | 3    | 15     | 1     |
+        | opening parenthesis     | 3    | 16     | 0     |
+        | closing parenthesis     | 3    | 17     | 0     |
+        | opening brace           | 3    | 19     | 0     |
+        | function body           | 4    | 5      | 0     |
+        | closing brace           | 5    | 1      | 0     |
 
   Rule: Workspace file preference
     Workspace files override disk files for queries

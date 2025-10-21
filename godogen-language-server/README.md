@@ -61,6 +61,7 @@ Create a `.godogen-language-server.json` file in your workspace root:
 Configure via your editor's LSP client settings. These override the config file.
 
 **VS Code** (settings.json):
+
 ```json
 {
   "godogen-language-server.stepPatterns": [
@@ -71,6 +72,7 @@ Configure via your editor's LSP client settings. These override the config file.
 ```
 
 **Neovim** (lspconfig):
+
 ```lua
 require('lspconfig').godogen.setup({
   init_options = {
@@ -95,6 +97,7 @@ List of glob patterns for discovering step definitions and feature files.
 **Default**: `["**"]` (watches everything in workspace)
 
 **Examples**:
+
 - `**/*_steps.go` - All Go files ending with `_steps.go`
 - `**/*.feature` - All feature files
 - `tests/**/*.go` - All Go files in tests directory
@@ -189,6 +192,7 @@ go generate ./testsuite
 ### File Indexing
 
 The language server maintains separate indexes for:
+
 - **Workspace files**: Files open in the editor (from LSP `didOpen`/`didChange`)
 - **Disk files**: Files discovered via glob patterns
 
@@ -197,6 +201,7 @@ Workspace versions always take precedence over disk versions.
 ### File Discovery
 
 Uses [doublestar](https://github.com/bmatcuk/doublestar) for glob pattern matching with `**` support. The file watcher:
+
 - Discovers existing files matching patterns
 - Watches directories for changes
 - Handles file creation, modification, and deletion

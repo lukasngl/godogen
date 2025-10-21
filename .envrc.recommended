@@ -1,3 +1,5 @@
+use flake
+
 # alias golangci-lint to ./gcl-plugin/custom-gcl if present
 if test -e ./gcl-plugin/custom-gcl; then
     mkdir -p .direnv/bin

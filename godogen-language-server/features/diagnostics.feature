@@ -4,7 +4,6 @@ Feature: Diagnostics
   So I can fix issues before running tests
 
   Rule: Pattern validation
-    Patterns must be valid regex with anchors
 
     Scenario: Pattern missing both anchors
       When steps.go is added to the workspace:
@@ -66,7 +65,7 @@ Feature: Diagnostics
       Then I get 0 diagnostics
 
   Rule: Parameter count matching
-    Regex groups must match function parameters
+                                                                                    Regex groups must match function parameters
 
     Scenario: Too few parameters
       When steps.go is added to the workspace:

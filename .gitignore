@@ -1,9 +1,12 @@
 .direnv
 .envrc
-
-testdata/errors_initialize.go
+.claude
+.go
+/coverage
+/testdata
 
 # Binaries
 /godogen
 /godogen-lint
 /gcl-plugin/custom-gcl
+godogen-language-server/godogen-language-server

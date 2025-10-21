@@ -357,6 +357,7 @@ func validateStepFunc(
 	case 2:
 		// Two return values: should be (context.Context, error).
 		resultTypeA := exprToString(fset, resultTypes[0].Type)
+
 		resultTypeB := exprToString(fset, resultTypes[1].Type)
 		if resultTypeA != "context.Context" || resultTypeB != "error" {
 			errs = append(errs, Error{
@@ -384,6 +385,7 @@ func (step *Step) validate(actualParams int) {
 			Message: "pattern is empty",
 			Node:    step.Node,
 		})
+
 		return
 	}
 
@@ -393,6 +395,7 @@ func (step *Step) validate(actualParams int) {
 			Message: fmt.Sprintf("regex pattern does not compile: %v", err),
 			Node:    step.Node,
 		})
+
 		return
 	}
 
@@ -427,6 +430,7 @@ func checkParmCount(node ast.Node, reg *regexp.Regexp, actualParams int) (Error,
 
 func (step *Step) checkAnchors() (Error, bool) {
 	hasStartAnchor := strings.HasPrefix(step.Pattern, "^")
+
 	hasEndAnchor := strings.HasSuffix(step.Pattern, "$")
 	if hasStartAnchor && hasEndAnchor {
 		return Error{}, false
@@ -438,7 +442,7 @@ func (step *Step) checkAnchors() (Error, bool) {
 	}
 
 	if !hasEndAnchor {
-		fixedPattern = fixedPattern + "$"
+		fixedPattern += "$"
 	}
 
 	fixedPattern = fmt.Sprintf("//godogen:%s %s", strings.ToLower(step.Kind), fixedPattern)
