@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	_ "embed"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -20,8 +21,11 @@ import (
 	godogen "github.com/lukasngl/godogen/pkg"
 )
 
+//go:embed version.txt
+var versionTxt string
+
 var (
-	version = "dev"
+	version = strings.TrimSpace(versionTxt)
 	commit  = "none"
 	date    = "unknown"
 
@@ -126,7 +130,7 @@ func main() {
 	flag.Parse()
 
 	if *versionFlag {
-		fmt.Printf("godogen-gen %s (commit: %s, built: %s)\n", version, commit, date)
+		fmt.Printf("godogen %s (%s %s)\n", version, commit, date)
 		os.Exit(0)
 	}
 

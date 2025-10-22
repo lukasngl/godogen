@@ -8,7 +8,7 @@ godogen is golang codegenerator, that allows you to colocate [godog] step defini
 
 This repository is organized as a monorepo containing multiple tools:
 
-- **`godogen-gen/`** - Code generator for godog step definitions
+- **Root (`main.go` + `pkg/`)** - Code generator for godog step definitions
 - **`godogen-lint/`** - Standalone linter for validating godogen directives
 - **`godogen-gcl/`** - golangci-lint plugin
 - **`godogen-language-server/`** - LSP server for IDE integration
@@ -16,13 +16,13 @@ This repository is organized as a monorepo containing multiple tools:
 ## Installation
 
 ```bash
-go install github.com/lukasngl/godogen/godogen-gen@latest
+go install github.com/lukasngl/godogen@latest
 ```
 
 Or run directly:
 
 ```bash
-go run github.com/lukasngl/godogen/godogen-gen@latest
+go run github.com/lukasngl/godogen@latest
 ```
 
 ## Motivation
@@ -54,7 +54,7 @@ This approach keeps your test definitions close to their patterns, making them e
 ```go
 // file: godog_steps.go
 package godogs
-//go:generate go run github.com/lukasngl/godogen/godogen-gen@latest
+//go:generate go run github.com/lukasngl/godogen@latest
 
 import (
 	"fmt"

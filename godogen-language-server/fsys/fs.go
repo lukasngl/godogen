@@ -313,7 +313,7 @@ func (w *Watcher) watch(ctx context.Context) {
 // to the watcher, and discovering any files that match our patterns.
 func (w *Watcher) handleNewDirectory(dirPath string) {
 	// Walk the new directory tree and add all directories to the watcher
-	filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			slog.Debug("failed to walk directory", "component", "fsys", "dir", dirPath, "path", path, "error", err)
 			return nil // Continue walking despite errors

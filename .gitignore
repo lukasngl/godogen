@@ -4,6 +4,7 @@
 .go
 /coverage
 /testdata
+result
 
 # Binaries
 /dist

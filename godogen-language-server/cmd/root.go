@@ -7,7 +7,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var version = "0.0.1"
+var (
+	version string
+	commit  string
+	date    string
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "godogen-language-server",
@@ -21,7 +25,14 @@ Provides features like:
   - Diagnostics for step validation errors
   - Auto-completion for Gherkin keywords
   - Code actions for suggested fixes`,
-	Version: version,
+}
+
+func SetVersion(v, c, d string) {
+	version = v
+	commit = c
+	date = d
+	rootCmd.Version = version
+	rootCmd.SetVersionTemplate(fmt.Sprintf("{{.Name}} %s (%s %s)\n", version, commit, date))
 }
 
 func Execute() {
@@ -29,8 +40,4 @@ func Execute() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-}
-
-func init() {
-	rootCmd.SetVersionTemplate("{{.Version}}\n")
 }

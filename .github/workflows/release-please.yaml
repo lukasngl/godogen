@@ -14,5 +14,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: googleapis/release-please-action@v4
+        id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Sync version.txt files to submodules if a release PR was created
+      - name: Checkout repository
+        if: ${{ steps.release.outputs.pr }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Just
+        if: ${{ steps.release.outputs.pr }}
+        uses: extractions/setup-just@v2
+
+      - name: Sync version files
+        if: ${{ steps.release.outputs.pr }}
+        run: just sync-version
+
+      - name: Commit synced versions
+        if: ${{ steps.release.outputs.pr }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add godogen-lint/version.txt godogen-language-server/version.txt
+          git commit --amend --no-edit
+          git push --force-with-lease
