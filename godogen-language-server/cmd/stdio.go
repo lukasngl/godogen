@@ -48,7 +48,11 @@ func runStdio(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer srv.Close()
+	defer func() {
+		if err := srv.Close(); err != nil {
+			slog.Error("failed to close server", "error", err)
+		}
+	}()
 
 	return srv.server.RunStdio()
 }
@@ -222,9 +226,9 @@ func (srv *Server) textDocumentDidOpen(
 
 	switch params.TextDocument.LanguageID {
 	case "go":
-		srv.index.IndexWorkspaceGoFile(path, []byte(params.TextDocument.Text))
+		_ = srv.index.IndexWorkspaceGoFile(path, []byte(params.TextDocument.Text))
 	case "cucumber":
-		srv.index.IndexWorkspaceFeatureFile(path, []byte(params.TextDocument.Text))
+		_ = srv.index.IndexWorkspaceFeatureFile(path, []byte(params.TextDocument.Text))
 	}
 
 	return nil
@@ -244,9 +248,9 @@ func (srv *Server) textDocumentDidChange(
 	// TODO: remember filetype when opening the file
 	switch filepath.Ext(path) {
 	case ".go":
-		srv.index.IndexWorkspaceGoFile(path, []byte(change.Text))
+		_ = srv.index.IndexWorkspaceGoFile(path, []byte(change.Text))
 	case ".feature":
-		srv.index.IndexWorkspaceFeatureFile(path, []byte(change.Text))
+		_ = srv.index.IndexWorkspaceFeatureFile(path, []byte(change.Text))
 	}
 
 	return nil

@@ -2,7 +2,7 @@ package gclplugin
 
 import (
 	"github.com/golangci/plugin-module-register/register"
-	godogen "github.com/lukasngl/godogen/godogen-lint/pkg"
+	godogenlint "github.com/lukasngl/godogen/godogen-lint/pkg"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -16,7 +16,7 @@ type Plugin struct{}
 
 // BuildAnalyzers implements register.LinterPlugin.
 func (p *Plugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
-	return []*analysis.Analyzer{godogen.Analyzer}, nil
+	return []*analysis.Analyzer{godogenlint.Analyzer}, nil
 }
 
 // GetLoadMode implements register.LinterPlugin.
@@ -28,5 +28,5 @@ func (p *Plugin) GetLoadMode() string {
 //
 // [golangci-lint]: https://golangci-lint.run/plugins/go-plugins
 func New(conf any) ([]*analysis.Analyzer, error) {
-	return []*analysis.Analyzer{godogen.Analyzer}, nil
+	return []*analysis.Analyzer{godogenlint.Analyzer}, nil
 }

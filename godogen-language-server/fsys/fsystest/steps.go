@@ -1,4 +1,4 @@
-//go:generate go tool godogen
+//go:generate go run github.com/lukasngl/godogen
 package fsystest
 
 import (

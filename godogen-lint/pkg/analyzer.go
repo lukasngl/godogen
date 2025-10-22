@@ -1,4 +1,4 @@
-package godogen
+package godogenlint
 
 import (
 	godogen "github.com/lukasngl/godogen/pkg"

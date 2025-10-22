@@ -7,6 +7,13 @@ check: build check-fmt check-gen check-tidy lint test
 
 build: build-godogen build-godogen-language-server build-godogen-lint build-godogen-gcl
 
+clean:
+    rm -f godogen
+    rm -f godogen-lint/godogen-lint
+    rm -f godogen-language-server/godogen-language-server
+    rm -f godogen-gcl/godogen-gcl
+    rm -rf dist coverage
+
 test *gotestflags="":
     just _test "." {{ gotestflags }}
     just _test "godogen-lint" {{ gotestflags }}
@@ -27,9 +34,13 @@ tidy:
 check-tidy:
     ./hack/group.sh "🧹" "checking go mod tidy" ./hack/error-on-diff.sh just tidy
 
-gen:
+gen: sync-version
     just _gen "."
     just _gen "godogen-language-server"
+
+sync-version:
+    cp version.txt godogen-lint/version.txt
+    cp version.txt godogen-language-server/version.txt
 
 check-gen:
     ./hack/group.sh "⚡" "checking generated code" ./hack/error-on-diff.sh just gen
@@ -66,11 +77,17 @@ _build module:
     #!/usr/bin/env sh
     set -e
     export PATH="$(pwd)/hack/:$PATH"
+
+    COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "none")
+    DATE=$(date -u +%Y-%m-%d)
+
+    LDFLAGS="-s -w -X main.commit=$COMMIT -X main.date=$DATE"
+
     cd {{ module }}
     group.sh "📦" "{{ module }} downloading dependencies" \
         go mod download
     group.sh "🔨" "{{ module }} compiling go code" \
-        go build ./...
+        go build -ldflags="$LDFLAGS" .
 
 _test module *gotestflags:
     #!/usr/bin/env sh

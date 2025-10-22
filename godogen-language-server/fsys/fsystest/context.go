@@ -69,7 +69,7 @@ func NewTestContext() (*TestContext, error) {
 	fsWatcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		cancel()
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		return nil, err
 	}
 	tc.fsWatcher = fsWatcher
@@ -86,7 +86,9 @@ func (tc *TestContext) Cleanup() error {
 		tc.cancel()
 	}
 	if tc.watcher != nil {
-		tc.watcher.Close()
+		if err := tc.watcher.Close(); err != nil {
+			return err
+		}
 	}
 	if tc.tempDir != "" {
 		return os.RemoveAll(tc.tempDir)

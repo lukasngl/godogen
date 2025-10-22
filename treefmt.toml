@@ -1,11 +1,7 @@
 # run with treefmt --allow-missing-formatter
 
 [global]
-excludes = [
-  "**/*_gen.go",
-  "**/testsuite/*_initialize.go",
-  ".go/**",
-]
+excludes = ["**/*_gen.go", "**/testsuite/*_initialize.go", ".go/**"]
 
 ### Misc
 
@@ -24,6 +20,10 @@ includes = [
   "*.toml",
 ]
 excludes = [".release-please-manifest.json"]
+
+[formatter.keep-sorted]
+command = "keep-sorted"
+includes = ["*"]
 
 ### Justfile
 
@@ -50,6 +50,12 @@ command = "goimports"
 options = ["-w"]
 includes = ["*.go"]
 priority = 1 # run after gofumpt
+
+### Nix
+
+[formatter.nixfmt]
+command = "nixfmt"
+includes = ["*.nix"]
 
 ### Shell
 
