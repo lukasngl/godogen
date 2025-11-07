@@ -800,9 +800,10 @@ func (index *Index) FindStepReferences(goPath string, line int, column int) []Lo
 
 	slog.Debug("finding references", "component", "index", "path", goPath, "line", line, "column", column)
 
-	for _, stepDef := range goFile.AllSteps() {
-		// Only proceed if cursor is on pattern comment
-		if !cursorInStepPattern(goFile, stepDef, line, column) {
+	for stepFunc, stepDef := range goFile.AllSteps() {
+		// Only proceed if cursor is on pattern comment or function name
+		if !cursorInStepPattern(goFile, stepDef, line, column) &&
+			!cursorInFunctionName(goFile, stepFunc, line, column) {
 			continue
 		}
 
