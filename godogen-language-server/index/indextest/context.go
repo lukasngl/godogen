@@ -1,6 +1,8 @@
 package indextest
 
 import (
+	"path/filepath"
+
 	"github.com/lukasngl/godogen/godogen-language-server/index"
 )
 
@@ -10,6 +12,7 @@ type TestContext struct {
 	Index       *index.Index // Exported for direct access in step definitions
 	results     []index.Location
 	diagnostics []index.Diagnostic
+	hoverInfo   *index.HoverInfo
 }
 
 // NewTestContext creates a new test context for a scenario.
@@ -74,4 +77,18 @@ func (tc *TestContext) GetDiagnosticsResult() []index.Diagnostic {
 // DiagnosticCount returns the number of diagnostics from the last query.
 func (tc *TestContext) DiagnosticCount() int {
 	return len(tc.diagnostics)
+}
+
+// GetHoverInfo queries for hover information at the given position.
+func (tc *TestContext) GetHoverInfo(path string, line int, column int) {
+	if filepath.Ext(path) == ".feature" {
+		tc.hoverInfo = tc.index.GetHoverInfoForFeature(path, line, column)
+	} else if filepath.Ext(path) == ".go" {
+		tc.hoverInfo = tc.index.GetHoverInfoForGo(path, line, column)
+	}
+}
+
+// GetHoverInfoResult returns the last hover query result.
+func (tc *TestContext) GetHoverInfoResult() *index.HoverInfo {
+	return tc.hoverInfo
 }

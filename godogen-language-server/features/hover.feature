@@ -242,9 +242,9 @@ Feature: Hover Information
         **Pattern:** `^I have (\d+) melons$`
         """
 
-  Rule: Hovering over Go step definition shows usage information
+  Rule: Hovering over Go step pattern comment shows usage information
 
-    Scenario: Hover shows step usage count
+    Scenario: Hover on pattern shows usage count
       Given test.feature is added to the workspace:
         """
         Feature: Test
@@ -259,7 +259,7 @@ Feature: Hover Information
         //godogen:given ^I have (\d+) cukes$
         func IHaveCukes(count int) {}
         """
-      When I hover over line 3 column 15 in steps.go
+      When I hover over line 3 column 25 in steps.go
       Then I get hover content:
         """
         **Step Definition**
@@ -272,7 +272,7 @@ Feature: Hover Information
         - test.feature:4
         """
 
-    Scenario: Hover shows unused status
+    Scenario: Hover on pattern shows unused status
       Given test.feature is added to the workspace:
         """
         Feature: Test
@@ -289,7 +289,7 @@ Feature: Hover Information
         //godogen:given ^I have (\d+) melons$
         func IHaveMelons(count int) {}
         """
-      When I hover over line 6 column 15 in steps.go
+      When I hover over line 6 column 25 in steps.go
       Then I get hover content:
         """
         **Step Definition**
@@ -297,30 +297,4 @@ Feature: Hover Information
         **Pattern:** `^I have (\d+) melons$`
         **Kind:** Given
         **Used in:** 0 places (unused)
-        """
-
-    Scenario: Hover on pattern comment shows same information
-      Given test.feature is added to the workspace:
-        """
-        Feature: Test
-          Scenario: Shopping
-            Given I have 5 cukes
-        """
-      And steps.go is added to the workspace:
-        """
-        package steps
-
-        //godogen:given ^I have (\d+) cukes$
-        func IHaveCukes(count int) {}
-        """
-      When I hover over line 3 column 25 in steps.go
-      Then I get hover content:
-        """
-        **Step Definition**
-
-        **Pattern:** `^I have (\d+) cukes$`
-        **Kind:** Given
-        **Used in:** 1 place
-
-        - test.feature:3
         """
