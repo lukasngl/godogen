@@ -274,7 +274,11 @@ func (tc *TestContext) CheckHoverContent(expected *godog.DocString) error {
 	actualContent := strings.TrimSpace(hoverInfo.Content)
 
 	if actualContent != expectedContent {
-		return fmt.Errorf("hover content mismatch:\nExpected:\n%s\n\nActual:\n%s", expectedContent, actualContent)
+		return fmt.Errorf(
+			"hover content mismatch:\nExpected:\n%s\n\nActual:\n%s",
+			expectedContent,
+			actualContent,
+		)
 	}
 
 	return nil
@@ -289,8 +293,12 @@ func (tc *TestContext) CheckNoHoverContent() error {
 	return nil
 }
 
+//
 //godogen:then ^diagnostic (\d+) does not contain "([^"]+)"$
-func (tc *TestContext) CheckDiagnosticMessageDoesNotContain(indexStr string, substring string) error {
+func (tc *TestContext) CheckDiagnosticMessageDoesNotContain(
+	indexStr string,
+	substring string,
+) error {
 	index, err := strconv.Atoi(indexStr)
 	if err != nil {
 		return fmt.Errorf("invalid index: %s", indexStr)

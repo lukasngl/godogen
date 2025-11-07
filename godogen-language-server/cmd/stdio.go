@@ -121,7 +121,6 @@ func NewServer() (*Server, error) {
 
 	srv.handler = &protocol17.Handler{
 		// diagnostics
-		TextDocumentDiagnostic: srv.textDocumentDiagnostic,
 		// lifecycle
 		Initialize: srv.initialize,
 		Handler: protocol.Handler{
@@ -218,7 +217,7 @@ func (srv *Server) shutdown(_ *glsp.Context) error {
 }
 
 func (srv *Server) textDocumentDidOpen(
-	_ *glsp.Context,
+	ctx *glsp.Context,
 	params *protocol.DidOpenTextDocumentParams,
 ) error {
 	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
@@ -229,6 +228,8 @@ func (srv *Server) textDocumentDidOpen(
 	switch params.TextDocument.LanguageID {
 	case "go":
 		_ = srv.index.IndexWorkspaceGoFile(path, []byte(params.TextDocument.Text))
+		// Push diagnostics for this Go file
+		srv.publishDiagnostics(ctx, path)
 	case "cucumber":
 		_ = srv.index.IndexWorkspaceFeatureFile(path, []byte(params.TextDocument.Text))
 	}
@@ -237,7 +238,7 @@ func (srv *Server) textDocumentDidOpen(
 }
 
 func (srv *Server) textDocumentDidChange(
-	_ *glsp.Context,
+	ctx *glsp.Context,
 	params *protocol.DidChangeTextDocumentParams,
 ) error {
 	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
@@ -251,6 +252,8 @@ func (srv *Server) textDocumentDidChange(
 	switch filepath.Ext(path) {
 	case ".go":
 		_ = srv.index.IndexWorkspaceGoFile(path, []byte(change.Text))
+		// Push diagnostics for this Go file
+		srv.publishDiagnostics(ctx, path)
 	case ".feature":
 		_ = srv.index.IndexWorkspaceFeatureFile(path, []byte(change.Text))
 	}
@@ -280,22 +283,14 @@ func (srv *Server) textDocumentDidClose(
 	return nil
 }
 
-// returns DocumentDiagnosticReport = RelatedFullDocumentDiagnosticReport | RelatedUnchangedDocumentDiagnosticReport.
-func (srv *Server) textDocumentDiagnostic(
-	_ *glsp.Context,
-	params *protocol17.DocumentDiagnosticParams,
-) (any, error) {
-	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
-	if !isFile {
-		return nil, nil
-	}
+// publishDiagnostics pushes diagnostics to the client via PublishDiagnostics notification.
+func (srv *Server) publishDiagnostics(ctx *glsp.Context, path string) {
+	uri := "file://" + path
 
 	indexDiagnostics := srv.index.GetDiagnostics(path)
-	if indexDiagnostics == nil {
-		return nil, nil
-	}
+	// Initialize with empty slice (not nil) to ensure JSON marshals to [] not null
+	diagnostics := []protocol.Diagnostic{}
 
-	var diagnostics []protocol.Diagnostic
 	for _, diag := range indexDiagnostics {
 		// Map index severity to LSP severity
 		var severity protocol.DiagnosticSeverity
@@ -329,12 +324,11 @@ func (srv *Server) textDocumentDiagnostic(
 		})
 	}
 
-	return protocol17.RelatedFullDocumentDiagnosticReport{
-		FullDocumentDiagnosticReport: protocol17.FullDocumentDiagnosticReport{
-			Kind:  string(protocol17.DocumentDiagnosticReportKindFull),
-			Items: diagnostics,
-		},
-	}, nil
+	// Send PublishDiagnostics notification to client
+	ctx.Notify(protocol.ServerTextDocumentPublishDiagnostics, protocol.PublishDiagnosticsParams{
+		URI:         uri,
+		Diagnostics: diagnostics,
+	})
 }
 
 // Returns: Command | []CodeAction | nil.
