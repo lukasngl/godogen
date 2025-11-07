@@ -627,6 +627,12 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 	var diagnostics []Diagnostic
 
 	for kind, step := range featureFile.Steps() {
+		// Skip scenario outline steps with placeholders (e.g., "I have <count> cukes")
+		// These will be instantiated with example values at runtime
+		if strings.Contains(step.Text, "<") && strings.Contains(step.Text, ">") {
+			continue
+		}
+
 		// Check if any step definition matches this step
 		hasMatch := false
 
