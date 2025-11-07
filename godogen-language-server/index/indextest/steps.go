@@ -373,3 +373,195 @@ func (tc *TestContext) CheckDiagnosticLine(indexStr string, lineStr string) erro
 
 	return nil
 }
+//godogen:when ^I request document symbols for (.+)$
+func (tc *TestContext) RequestDocumentSymbols(path string) error {
+	tc.GetDocumentSymbols(path, false)
+	return nil
+}
+
+//godogen:when ^I request document symbols for (.+) with hierarchy$
+func (tc *TestContext) RequestDocumentSymbolsWithHierarchy(path string) error {
+	tc.GetDocumentSymbols(path, true)
+	return nil
+}
+
+//godogen:then ^I get (\d+) symbols?$
+func (tc *TestContext) CheckSymbolCount(countStr string) error {
+	expectedCount, err := strconv.Atoi(countStr)
+	if err != nil {
+		return fmt.Errorf("invalid count: %s", countStr)
+	}
+
+	actualCount := tc.DocumentSymbolsCount()
+	if actualCount != expectedCount {
+		return fmt.Errorf("expected %d symbols, got %d", expectedCount, actualCount)
+	}
+
+	return nil
+}
+
+//godogen:then ^symbol (\d+) name is "([^"]+)"$
+func (tc *TestContext) CheckSymbolName(indexStr string, expectedName string) error {
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return fmt.Errorf("invalid index: %s", indexStr)
+	}
+
+	symbols := tc.GetDocumentSymbolsResult()
+	if index >= len(symbols) {
+		return fmt.Errorf("symbol index %d out of range (have %d symbols)", index, len(symbols))
+	}
+
+	actualName := symbols[index].Name
+	if actualName != expectedName {
+		return fmt.Errorf("expected name %q, got %q", expectedName, actualName)
+	}
+
+	return nil
+}
+
+//godogen:then ^symbol (\d+) kind is "([^"]+)"$
+func (tc *TestContext) CheckSymbolKind(indexStr string, expectedKind string) error {
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return fmt.Errorf("invalid index: %s", indexStr)
+	}
+
+	symbols := tc.GetDocumentSymbolsResult()
+	if index >= len(symbols) {
+		return fmt.Errorf("symbol index %d out of range (have %d symbols)", index, len(symbols))
+	}
+
+	actualKind := symbols[index].Kind
+	if actualKind != expectedKind {
+		return fmt.Errorf("expected kind %q, got %q", expectedKind, actualKind)
+	}
+
+	return nil
+}
+
+//godogen:then ^symbol (\d+) is on line (\d+)$
+func (tc *TestContext) CheckSymbolLine(indexStr string, lineStr string) error {
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return fmt.Errorf("invalid index: %s", indexStr)
+	}
+
+	line, err := strconv.Atoi(lineStr)
+	if err != nil {
+		return fmt.Errorf("invalid line: %s", lineStr)
+	}
+
+	symbols := tc.GetDocumentSymbolsResult()
+	if index >= len(symbols) {
+		return fmt.Errorf("symbol index %d out of range (have %d symbols)", index, len(symbols))
+	}
+
+	actualLine := symbols[index].Line
+	if actualLine != line {
+		return fmt.Errorf("expected line %d, got %d", line, actualLine)
+	}
+
+	return nil
+}
+
+//godogen:then ^symbol (\d+) has (\d+) children?$
+func (tc *TestContext) CheckSymbolChildCount(indexStr string, countStr string) error {
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return fmt.Errorf("invalid index: %s", indexStr)
+	}
+
+	expectedCount, err := strconv.Atoi(countStr)
+	if err != nil {
+		return fmt.Errorf("invalid count: %s", countStr)
+	}
+
+	symbols := tc.GetDocumentSymbolsResult()
+	if index >= len(symbols) {
+		return fmt.Errorf("symbol index %d out of range (have %d symbols)", index, len(symbols))
+	}
+
+	actualCount := len(symbols[index].Children)
+	if actualCount != expectedCount {
+		return fmt.Errorf("expected %d children, got %d", expectedCount, actualCount)
+	}
+
+	return nil
+}
+
+//godogen:then ^symbol (\d+) child (\d+) name is "([^"]+)"$
+func (tc *TestContext) CheckSymbolChildName(
+	indexStr string,
+	childIndexStr string,
+	expectedName string,
+) error {
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return fmt.Errorf("invalid index: %s", indexStr)
+	}
+
+	childIndex, err := strconv.Atoi(childIndexStr)
+	if err != nil {
+		return fmt.Errorf("invalid child index: %s", childIndexStr)
+	}
+
+	symbols := tc.GetDocumentSymbolsResult()
+	if index >= len(symbols) {
+		return fmt.Errorf("symbol index %d out of range (have %d symbols)", index, len(symbols))
+	}
+
+	children := symbols[index].Children
+	if childIndex >= len(children) {
+		return fmt.Errorf(
+			"child index %d out of range (have %d children)",
+			childIndex,
+			len(children),
+		)
+	}
+
+	actualName := children[childIndex].Name
+	if actualName != expectedName {
+		return fmt.Errorf("expected name %q, got %q", expectedName, actualName)
+	}
+
+	return nil
+}
+
+//godogen:then ^symbol (\d+) child (\d+) kind is "([^"]+)"$
+func (tc *TestContext) CheckSymbolChildKind(
+	indexStr string,
+	childIndexStr string,
+	expectedKind string,
+) error {
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return fmt.Errorf("invalid index: %s", indexStr)
+	}
+
+	childIndex, err := strconv.Atoi(childIndexStr)
+	if err != nil {
+		return fmt.Errorf("invalid child index: %s", childIndexStr)
+	}
+
+	symbols := tc.GetDocumentSymbolsResult()
+	if index >= len(symbols) {
+		return fmt.Errorf("symbol index %d out of range (have %d symbols)", index, len(symbols))
+	}
+
+	children := symbols[index].Children
+	if childIndex >= len(children) {
+		return fmt.Errorf(
+			"child index %d out of range (have %d children)",
+			childIndex,
+			len(children),
+		)
+	}
+
+	actualKind := children[childIndex].Kind
+	if actualKind != expectedKind {
+		return fmt.Errorf("expected kind %q, got %q", expectedKind, actualKind)
+	}
+
+	return nil
+}

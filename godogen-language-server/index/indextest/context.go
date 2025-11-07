@@ -9,11 +9,12 @@ import (
 
 // TestContext holds the state for a test scenario.
 type TestContext struct {
-	index       *index.Index
-	Index       *index.Index // Exported for direct access in step definitions
-	results     []index.Location
-	diagnostics []index.Diagnostic
-	hoverInfo   *index.HoverInfo
+	index           *index.Index
+	Index           *index.Index // Exported for direct access in step definitions
+	results         []index.Location
+	diagnostics     []index.Diagnostic
+	hoverInfo       *index.HoverInfo
+	documentSymbols []index.DocumentSymbol
 }
 
 // NewTestContext creates a new test context for a scenario.
@@ -97,4 +98,23 @@ func (tc *TestContext) GetHoverInfo(path string, line int, column int) {
 // GetHoverInfoResult returns the last hover query result.
 func (tc *TestContext) GetHoverInfoResult() *index.HoverInfo {
 	return tc.hoverInfo
+}
+
+// GetDocumentSymbols queries for document symbols at the given path.
+func (tc *TestContext) GetDocumentSymbols(path string, withHierarchy bool) {
+	if filepath.Ext(path) == ".go" {
+		tc.documentSymbols = tc.index.GetGoDocumentSymbols(path)
+	} else {
+		tc.documentSymbols = tc.index.GetFeatureDocumentSymbols(path, withHierarchy)
+	}
+}
+
+// GetDocumentSymbolsResult returns the last document symbols query results.
+func (tc *TestContext) GetDocumentSymbolsResult() []index.DocumentSymbol {
+	return tc.documentSymbols
+}
+
+// DocumentSymbolsCount returns the number of document symbols from the last query.
+func (tc *TestContext) DocumentSymbolsCount() int {
+	return len(tc.documentSymbols)
 }
