@@ -244,3 +244,47 @@ func (tc *TestContext) CheckDiagnosticMessageContains(indexStr string, substring
 
 	return nil
 }
+
+//godogen:when ^I hover over line (\d+) column (\d+) in (.+)$
+func (tc *TestContext) HoverOverPosition(lineStr string, columnStr string, path string) error {
+	line, err := strconv.Atoi(lineStr)
+	if err != nil {
+		return fmt.Errorf("invalid line number: %s", lineStr)
+	}
+
+	column, err := strconv.Atoi(columnStr)
+	if err != nil {
+		return fmt.Errorf("invalid column number: %s", columnStr)
+	}
+
+	// LSP uses 0-indexed lines, but 0-indexed columns
+	// The feature uses 1-indexed for both, so convert
+	tc.GetHoverInfo(path, line-1, column-1)
+	return nil
+}
+
+//godogen:then ^I get hover content:$
+func (tc *TestContext) CheckHoverContent(expected *godog.DocString) error {
+	hoverInfo := tc.GetHoverInfoResult()
+	if hoverInfo == nil {
+		return fmt.Errorf("expected hover content, got nil")
+	}
+
+	expectedContent := strings.TrimSpace(expected.Content)
+	actualContent := strings.TrimSpace(hoverInfo.Content)
+
+	if actualContent != expectedContent {
+		return fmt.Errorf("hover content mismatch:\nExpected:\n%s\n\nActual:\n%s", expectedContent, actualContent)
+	}
+
+	return nil
+}
+
+//godogen:then ^I get no hover content$
+func (tc *TestContext) CheckNoHoverContent() error {
+	hoverInfo := tc.GetHoverInfoResult()
+	if hoverInfo != nil {
+		return fmt.Errorf("expected no hover content, got: %s", hoverInfo.Content)
+	}
+	return nil
+}

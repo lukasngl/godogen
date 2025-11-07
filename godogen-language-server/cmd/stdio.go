@@ -136,6 +136,8 @@ func NewServer() (*Server, error) {
 			TextDocumentDefinition:     srv.textDocumentDefinition,
 			TextDocumentImplementation: srv.textDocumentImplementation,
 			TextDocumentReferences:     srv.textDocumentReferences,
+			// hover
+			TextDocumentHover: srv.textDocumentHover,
 			// autofix
 			TextDocumentCodeAction: srv.textDocumentCodeAction,
 		},
@@ -538,6 +540,63 @@ func (srv *Server) textDocumentReferences(
 	}
 
 	return locs, nil
+}
+
+// Returns: Hover | nil.
+func (srv *Server) textDocumentHover(
+	_ *glsp.Context,
+	params *protocol.HoverParams,
+) (*protocol.Hover, error) {
+	slog.Debug("hover request", "component", "lsp", "uri", params.TextDocument.URI, "line", params.Position.Line, "character", params.Position.Character)
+
+	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
+	if !isFile {
+		slog.Debug("not a file URI", "component", "lsp", "uri", params.TextDocument.URI)
+		return nil, nil
+	}
+
+	ext := filepath.Ext(path)
+
+	switch ext {
+	case ".feature":
+		return srv.hoverOnFeatureFile(path, params.Position)
+	case ".go":
+		return srv.hoverOnGoFile(path, params.Position)
+	default:
+		return nil, nil
+	}
+}
+
+func (srv *Server) hoverOnFeatureFile(path string, position protocol.Position) (*protocol.Hover, error) {
+	hoverInfo := srv.index.GetHoverInfoForFeature(path, int(position.Line), int(position.Character)+1)
+	if hoverInfo == nil {
+		return nil, nil
+	}
+
+	content := protocol.MarkupContent{
+		Kind:  protocol.MarkupKindMarkdown,
+		Value: hoverInfo.Content,
+	}
+
+	return &protocol.Hover{
+		Contents: content,
+	}, nil
+}
+
+func (srv *Server) hoverOnGoFile(path string, position protocol.Position) (*protocol.Hover, error) {
+	hoverInfo := srv.index.GetHoverInfoForGo(path, int(position.Line), int(position.Character)+1)
+	if hoverInfo == nil {
+		return nil, nil
+	}
+
+	content := protocol.MarkupContent{
+		Kind:  protocol.MarkupKindMarkdown,
+		Value: hoverInfo.Content,
+	}
+
+	return &protocol.Hover{
+		Contents: content,
+	}, nil
 }
 
 func box[T any](v T) *T {

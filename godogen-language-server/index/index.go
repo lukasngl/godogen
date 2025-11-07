@@ -5,10 +5,15 @@ package index
 
 import (
 	"bytes"
+	"fmt"
+	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"iter"
 	"log/slog"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	gherkin "github.com/cucumber/gherkin/go/v36"
@@ -518,9 +523,7 @@ func (index *Index) FindStepDefinitions(featurePath string, line int, patternLoc
 
 // FindStepReferences finds feature steps that reference the Go step pattern at the given line and column.
 // Column is 1-indexed (1 = first character of line).
-// Returns references only if the cursor is on:
-// - A pattern comment (//godogen:...), or
-// - The function name (not the func keyword, parameters, return type, or body).
+// Returns references only if the cursor is on a pattern comment (//godogen:...).
 func (index *Index) FindStepReferences(goPath string, line int, column int) []Location {
 	index.mx.RLock()
 	defer index.mx.RUnlock()
@@ -541,10 +544,9 @@ func (index *Index) FindStepReferences(goPath string, line int, column int) []Lo
 
 	slog.Debug("finding references", "component", "index", "path", goPath, "line", line, "column", column)
 
-	for stepFunc, stepDef := range goFile.AllSteps() {
-		// Only proceed if cursor is on pattern comment or function name
-		if !cursorInStepPattern(goFile, stepDef, line, column) &&
-			!cursorInFunctionName(goFile, stepFunc, line, column) {
+	for _, stepDef := range goFile.AllSteps() {
+		// Only proceed if cursor is on pattern comment
+		if !cursorInStepPattern(goFile, stepDef, line, column) {
 			continue
 		}
 
@@ -606,4 +608,253 @@ func stepMatchesDefinition(kind string, step *messages.Step, stepDef godogen.Ste
 	}
 
 	return true
+}
+
+// HoverInfo represents hover information to display.
+type HoverInfo struct {
+	Content string
+}
+
+// GetHoverInfoForFeature returns hover information for a position in a feature file.
+// Returns nil if no hover information is available.
+func (index *Index) GetHoverInfoForFeature(featurePath string, line int, column int) *HoverInfo {
+	index.mx.RLock()
+	defer index.mx.RUnlock()
+
+	versions := index.Features[featurePath]
+	if versions == nil {
+		return nil
+	}
+
+	featureFile := versions.get()
+	if featureFile == nil {
+		return nil
+	}
+
+	// Find the step at the given position
+	for kind, step := range featureFile.Steps() {
+		// Check if position is on this step (line is 0-indexed in LSP)
+		if step.Location.Line-1 != int64(line) {
+			continue
+		}
+
+		// Check if cursor is within the step text
+		startCol := int(step.Location.Column)
+		endCol := startCol + len(step.Keyword) + len(step.Text)
+		if column < startCol || column > endCol {
+			continue
+		}
+
+		// Find matching step definitions
+		var matches []stepDefMatch
+		for path, goFileVersions := range index.GoFiles {
+			goFile := goFileVersions.get()
+			if goFile == nil {
+				continue
+			}
+
+			for stepFunc, stepDef := range goFile.AllSteps() {
+				if !stepMatchesDefinition(kind, step, stepDef) {
+					continue
+				}
+
+				funcPos := goFile.Position(stepFunc.Node.Pos())
+				matches = append(matches, stepDefMatch{
+					path:     path,
+					stepFunc: stepFunc,
+					stepDef:  stepDef,
+					goFile:   goFile,
+					line:     funcPos.Line,
+				})
+			}
+		}
+
+		if len(matches) == 0 {
+			// No matching step definition found
+			return &HoverInfo{
+				Content: formatUndefinedStep(step),
+			}
+		}
+
+		if len(matches) == 1 {
+			// Single match
+			return &HoverInfo{
+				Content: formatSingleStepDef(matches[0]),
+			}
+		}
+
+		// Multiple matches (ambiguous)
+		return &HoverInfo{
+			Content: formatAmbiguousStepDefs(matches),
+		}
+	}
+
+	// No step at this position
+	return nil
+}
+
+// GetHoverInfoForGo returns hover information for a position in a Go file.
+// Returns nil if no hover information is available.
+func (index *Index) GetHoverInfoForGo(goPath string, line int, column int) *HoverInfo {
+	index.mx.RLock()
+	defer index.mx.RUnlock()
+
+	versions := index.GoFiles[goPath]
+	if versions == nil {
+		return nil
+	}
+
+	goFile := versions.get()
+	if goFile == nil {
+		return nil
+	}
+
+	// Find step definition at cursor position (only on pattern comments)
+	for _, stepDef := range goFile.AllSteps() {
+		// Check if cursor is on pattern comment
+		if !cursorInStepPattern(goFile, stepDef, line, column) {
+			continue
+		}
+
+		// Find all references to this step definition
+		var refs []stepRefLocation
+		for path, featureFileVersions := range index.Features {
+			featureFile := featureFileVersions.get()
+			if featureFile == nil {
+				continue
+			}
+
+			for kind, step := range featureFile.Steps() {
+				if !stepMatchesDefinition(kind, step, stepDef) {
+					continue
+				}
+
+				refs = append(refs, stepRefLocation{
+					path: path,
+					line: int(step.Location.Line),
+				})
+			}
+		}
+
+		return &HoverInfo{
+			Content: formatStepUsage(stepDef, refs),
+		}
+	}
+
+	return nil
+}
+
+// stepDefMatch holds information about a matching step definition.
+type stepDefMatch struct {
+	path     string
+	stepFunc godogen.StepFunc
+	stepDef  godogen.Step
+	goFile   *GoFile
+	line     int
+}
+
+// stepRefLocation holds a reference location.
+type stepRefLocation struct {
+	path string
+	line int
+}
+
+// formatUndefinedStep formats hover content for an undefined step.
+func formatUndefinedStep(step *messages.Step) string {
+	return fmt.Sprintf("**No step definition found**\n\nNo matching step definition for:\n```gherkin\n%s%s\n```",
+		step.Keyword, step.Text)
+}
+
+// formatSingleStepDef formats hover content for a single step definition.
+func formatSingleStepDef(match stepDefMatch) string {
+	var content strings.Builder
+	content.WriteString("**Step Definition**\n\n")
+
+	// Add godoc if available
+	if match.stepFunc.Node.Doc != nil {
+		docText := match.stepFunc.Node.Doc.Text()
+		if docText != "" {
+			content.WriteString(strings.TrimSpace(docText))
+			content.WriteString("\n\n")
+		}
+	}
+
+	// Add function signature
+	sig := formatFunctionSignature(match.goFile.FileSet, match.stepFunc.Node)
+	content.WriteString("```go\n")
+	content.WriteString(sig)
+	content.WriteString("\n```\n\n")
+
+	// Add file location and pattern
+	filename := filepath.Base(match.path)
+	content.WriteString(fmt.Sprintf("**File:** %s:%d\n", filename, match.line))
+	content.WriteString(fmt.Sprintf("**Pattern:** `%s`", match.stepDef.Pattern))
+
+	return content.String()
+}
+
+// formatAmbiguousStepDefs formats hover content for multiple matching step definitions.
+func formatAmbiguousStepDefs(matches []stepDefMatch) string {
+	var content strings.Builder
+	content.WriteString(fmt.Sprintf("**Step Definitions (%d matches)**\n\n", len(matches)))
+
+	for i, match := range matches {
+		if i > 0 {
+			content.WriteString("\n---\n\n")
+		}
+
+		sig := formatFunctionSignature(match.goFile.FileSet, match.stepFunc.Node)
+		content.WriteString("```go\n")
+		content.WriteString(sig)
+		content.WriteString("\n```\n")
+
+		filename := filepath.Base(match.path)
+		content.WriteString(fmt.Sprintf("**File:** %s:%d\n", filename, match.line))
+		content.WriteString(fmt.Sprintf("**Pattern:** `%s`", match.stepDef.Pattern))
+	}
+
+	return content.String()
+}
+
+// formatStepUsage formats hover content for step usage information.
+func formatStepUsage(stepDef godogen.Step, refs []stepRefLocation) string {
+	var content strings.Builder
+	content.WriteString("**Step Definition**\n\n")
+	content.WriteString(fmt.Sprintf("**Pattern:** `%s`\n", stepDef.Pattern))
+	content.WriteString(fmt.Sprintf("**Kind:** %s\n", stepDef.Kind))
+
+	count := len(refs)
+	if count == 0 {
+		content.WriteString("**Used in:** 0 places (unused)")
+	} else {
+		placeWord := "place"
+		if count > 1 {
+			placeWord = "places"
+		}
+		content.WriteString(fmt.Sprintf("**Used in:** %d %s\n\n", count, placeWord))
+
+		for _, ref := range refs {
+			filename := filepath.Base(ref.path)
+			content.WriteString(fmt.Sprintf("- %s:%d\n", filename, ref.line))
+		}
+	}
+
+	return content.String()
+}
+
+// formatFunctionSignature formats a function signature for display.
+func formatFunctionSignature(fset *token.FileSet, funcDecl *ast.FuncDecl) string {
+	var buf bytes.Buffer
+
+	// Write function keyword and name
+	buf.WriteString("func ")
+	buf.WriteString(funcDecl.Name.Name)
+
+	// Write function type (parameters and return values)
+	if err := format.Node(&buf, fset, funcDecl.Type); err != nil {
+		// Fallback to just the name if formatting fails
+		return "func " + funcDecl.Name.Name
+	}
+
+	return buf.String()
 }
