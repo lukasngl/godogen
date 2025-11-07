@@ -297,6 +297,21 @@ func (srv *Server) textDocumentDiagnostic(
 
 	var diagnostics []protocol.Diagnostic
 	for _, diag := range indexDiagnostics {
+		// Map index severity to LSP severity
+		var severity protocol.DiagnosticSeverity
+		switch diag.Severity {
+		case 1:
+			severity = protocol.DiagnosticSeverityError
+		case 2:
+			severity = protocol.DiagnosticSeverityWarning
+		case 3:
+			severity = protocol.DiagnosticSeverityInformation
+		case 4:
+			severity = protocol.DiagnosticSeverityHint
+		default:
+			severity = protocol.DiagnosticSeverityWarning
+		}
+
 		diagnostics = append(diagnostics, protocol.Diagnostic{
 			Range: protocol.Range{
 				Start: protocol.Position{
@@ -308,7 +323,7 @@ func (srv *Server) textDocumentDiagnostic(
 					Character: protocol.UInteger(diag.EndColumn - 1),
 				},
 			},
-			Severity: box(protocol.DiagnosticSeverityWarning),
+			Severity: box(severity),
 			Source:   box("godogen"),
 			Message:  diag.Message,
 		})
