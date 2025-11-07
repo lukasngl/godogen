@@ -649,9 +649,9 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 				continue
 			}
 
-			for stepFunc, stepDef := range goFile.AllSteps() {
+			for _, stepDef := range goFile.AllSteps() {
 				if stepMatchesDefinition(kind, step, stepDef) {
-					pos := goFile.Position(stepFunc.Node.Pos())
+					pos := goFile.Position(stepDef.Node.Pos())
 					matchingLocs = append(matchingLocs, Location{
 						Path:   goPath,
 						Line:   pos.Line,
@@ -1008,7 +1008,7 @@ func (index *Index) GetHoverInfoForFeature(featurePath string, line int, column 
 					continue
 				}
 
-				funcPos := goFile.Position(stepFunc.Node.Pos())
+				funcPos := goFile.Position(stepDef.Node.Pos())
 				matches = append(matches, stepDefMatch{
 					path:     path,
 					stepFunc: stepFunc,
@@ -1207,4 +1207,192 @@ func formatFunctionSignature(fset *token.FileSet, funcDecl *ast.FuncDecl) string
 	}
 
 	return buf.String()
+}
+
+// DocumentSymbol represents a symbol in a document for the document symbols feature.
+type DocumentSymbol struct {
+	Name     string
+	Kind     string
+	Line     int
+	Children []DocumentSymbol
+}
+
+// GetGoDocumentSymbols returns document symbols for a Go file.
+// Returns step definitions and hooks as symbols.
+func (index *Index) GetGoDocumentSymbols(path string) []DocumentSymbol {
+	index.mx.RLock()
+	defer index.mx.RUnlock()
+
+	versions := index.GoFiles[path]
+	if versions == nil {
+		return nil
+	}
+
+	goFile := versions.get()
+	if goFile == nil {
+		return nil
+	}
+
+	var symbols []DocumentSymbol
+
+	// Add step definitions
+	for _, stepDef := range goFile.AllSteps() {
+		pos := goFile.Position(stepDef.Node.Pos())
+		// Escape backslashes in pattern for display
+		escapedPattern := strings.ReplaceAll(stepDef.Pattern, `\`, `\\`)
+		name := fmt.Sprintf("%s: %s", stepDef.Kind, escapedPattern)
+
+		symbols = append(symbols, DocumentSymbol{
+			Name: name,
+			Kind: "Function",
+			Line: pos.Line,
+		})
+	}
+
+	// Add hooks
+	for _, stepFunc := range goFile.StepFuncs {
+		for _, hook := range stepFunc.Hooks {
+			pos := goFile.Position(hook.Node.Pos())
+			name := fmt.Sprintf("%s Hook", hook.Kind)
+
+			symbols = append(symbols, DocumentSymbol{
+				Name: name,
+				Kind: "Function",
+				Line: pos.Line,
+			})
+		}
+
+		for _, hook := range stepFunc.StepHooks {
+			pos := goFile.Position(hook.Node.Pos())
+			name := fmt.Sprintf("%s Step Hook", hook.Kind)
+
+			symbols = append(symbols, DocumentSymbol{
+				Name: name,
+				Kind: "Function",
+				Line: pos.Line,
+			})
+		}
+	}
+
+	return symbols
+}
+
+// GetFeatureDocumentSymbols returns document symbols for a feature file.
+// If withFeature is true, returns the Feature as root container with children.
+// Otherwise, returns scenarios/rules as top-level symbols.
+func (index *Index) GetFeatureDocumentSymbols(path string, withFeature bool) []DocumentSymbol {
+	index.mx.RLock()
+	defer index.mx.RUnlock()
+
+	versions := index.Features[path]
+	if versions == nil {
+		return nil
+	}
+
+	featureFile := versions.get()
+	if featureFile == nil {
+		return nil
+	}
+
+	var symbols []DocumentSymbol
+
+	for _, child := range featureFile.Children {
+		if child.Background != nil {
+			bg := child.Background
+			bgSymbol := DocumentSymbol{
+				Name: "Background",
+				Kind: "Method",
+				Line: int(bg.Location.Line),
+			}
+
+			for _, step := range bg.Steps {
+				bgSymbol.Children = append(bgSymbol.Children, DocumentSymbol{
+					Name: fmt.Sprintf("%s %s", strings.TrimSpace(step.Keyword), step.Text),
+					Kind: "Property",
+					Line: int(step.Location.Line),
+				})
+			}
+
+			symbols = append(symbols, bgSymbol)
+		}
+
+		if child.Rule != nil {
+			rule := child.Rule
+			ruleSymbol := DocumentSymbol{
+				Name: fmt.Sprintf("Rule: %s", rule.Name),
+				Kind: "Class",
+				Line: int(rule.Location.Line),
+			}
+
+			for _, ruleChild := range rule.Children {
+				if ruleChild.Background != nil {
+					bg := ruleChild.Background
+					bgSymbol := DocumentSymbol{
+						Name: "Background",
+						Kind: "Method",
+						Line: int(bg.Location.Line),
+					}
+
+					for _, step := range bg.Steps {
+						bgSymbol.Children = append(bgSymbol.Children, DocumentSymbol{
+							Name: fmt.Sprintf("%s %s", strings.TrimSpace(step.Keyword), step.Text),
+							Kind: "Property",
+							Line: int(step.Location.Line),
+						})
+					}
+
+					ruleSymbol.Children = append(ruleSymbol.Children, bgSymbol)
+				}
+
+				if ruleChild.Scenario != nil {
+					scenario := ruleChild.Scenario
+					scenarioSymbol := buildScenarioSymbol(scenario)
+					ruleSymbol.Children = append(ruleSymbol.Children, scenarioSymbol)
+				}
+			}
+
+			symbols = append(symbols, ruleSymbol)
+		}
+
+		if child.Scenario != nil {
+			scenario := child.Scenario
+			scenarioSymbol := buildScenarioSymbol(scenario)
+			symbols = append(symbols, scenarioSymbol)
+		}
+	}
+
+	if withFeature {
+		featureSymbol := DocumentSymbol{
+			Name:     fmt.Sprintf("Feature: %s", featureFile.Name),
+			Kind:     "Module",
+			Line:     int(featureFile.Location.Line),
+			Children: symbols,
+		}
+		return []DocumentSymbol{featureSymbol}
+	}
+
+	return symbols
+}
+
+func buildScenarioSymbol(scenario *messages.Scenario) DocumentSymbol {
+	keyword := "Scenario"
+	if len(scenario.Examples) > 0 {
+		keyword = "Scenario Outline"
+	}
+
+	scenarioSymbol := DocumentSymbol{
+		Name: fmt.Sprintf("%s: %s", keyword, scenario.Name),
+		Kind: "Method",
+		Line: int(scenario.Location.Line),
+	}
+
+	for _, step := range scenario.Steps {
+		scenarioSymbol.Children = append(scenarioSymbol.Children, DocumentSymbol{
+			Name: fmt.Sprintf("%s %s", strings.TrimSpace(step.Keyword), step.Text),
+			Kind: "Property",
+			Line: int(step.Location.Line),
+		})
+	}
+
+	return scenarioSymbol
 }

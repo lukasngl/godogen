@@ -137,6 +137,8 @@ func NewServer() (*Server, error) {
 			TextDocumentReferences:     srv.textDocumentReferences,
 			// hover
 			TextDocumentHover: srv.textDocumentHover,
+			// document symbols
+			TextDocumentDocumentSymbol: srv.textDocumentDocumentSymbol,
 			// autofix
 			TextDocumentCodeAction: srv.textDocumentCodeAction,
 		},
@@ -617,6 +619,97 @@ func (srv *Server) hoverOnGoFile(path string, position protocol.Position) (*prot
 	return &protocol.Hover{
 		Contents: content,
 	}, nil
+}
+
+// Returns: []DocumentSymbol | []SymbolInformation | nil.
+func (srv *Server) textDocumentDocumentSymbol(
+	_ *glsp.Context,
+	params *protocol.DocumentSymbolParams,
+) (any, error) {
+	slog.Debug("document symbols request", "component", "lsp", "uri", params.TextDocument.URI)
+
+	path, isFile := strings.CutPrefix(params.TextDocument.URI, "file://")
+	if !isFile {
+		slog.Debug("not a file URI", "component", "lsp", "uri", params.TextDocument.URI)
+		return nil, nil
+	}
+
+	ext := filepath.Ext(path)
+	var indexSymbols []index.DocumentSymbol
+
+	switch ext {
+	case ".go":
+		indexSymbols = srv.index.GetGoDocumentSymbols(path)
+	case ".feature":
+		// For feature files, we check if client supports hierarchical symbols
+		// by always providing hierarchical structure (Feature as root)
+		indexSymbols = srv.index.GetFeatureDocumentSymbols(path, false)
+	default:
+		return nil, nil
+	}
+
+	if indexSymbols == nil {
+		return nil, nil
+	}
+
+	// Convert index symbols to protocol symbols
+	var protocolSymbols []protocol.DocumentSymbol
+	for _, sym := range indexSymbols {
+		protocolSymbols = append(protocolSymbols, convertDocumentSymbol(sym))
+	}
+
+	return protocolSymbols, nil
+}
+
+// convertDocumentSymbol converts an index.DocumentSymbol to protocol.DocumentSymbol.
+func convertDocumentSymbol(sym index.DocumentSymbol) protocol.DocumentSymbol {
+	// Map string kind to protocol.SymbolKind
+	var kind protocol.SymbolKind
+	switch sym.Kind {
+	case "Function":
+		kind = protocol.SymbolKindFunction
+	case "Method":
+		kind = protocol.SymbolKindMethod
+	case "Property":
+		kind = protocol.SymbolKindProperty
+	case "Module":
+		kind = protocol.SymbolKindModule
+	case "Class":
+		kind = protocol.SymbolKindClass
+	default:
+		kind = protocol.SymbolKindFunction
+	}
+
+	// LSP uses 0-indexed lines
+	line := protocol.UInteger(sym.Line - 1)
+
+	// Create range for the symbol (we use line-based ranges)
+	symbolRange := protocol.Range{
+		Start: protocol.Position{
+			Line:      line,
+			Character: 0,
+		},
+		End: protocol.Position{
+			Line:      line,
+			Character: 1000, // Use a large number to cover the whole line
+		},
+	}
+
+	protocolSym := protocol.DocumentSymbol{
+		Name:           sym.Name,
+		Kind:           kind,
+		Range:          symbolRange,
+		SelectionRange: symbolRange,
+	}
+
+	// Convert children recursively
+	if len(sym.Children) > 0 {
+		for _, child := range sym.Children {
+			protocolSym.Children = append(protocolSym.Children, convertDocumentSymbol(child))
+		}
+	}
+
+	return protocolSym
 }
 
 func box[T any](v T) *T {
