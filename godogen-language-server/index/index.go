@@ -408,6 +408,183 @@ func (index *Index) GetDiagnostics(path string) []Diagnostic {
 		}
 	}
 
+	// Check for duplicate step definitions
+	duplicateDiags := index.findDuplicateSteps(path)
+	diagnostics = append(diagnostics, duplicateDiags...)
+
+	return diagnostics
+}
+
+// stepKey creates a unique key for a step based on its kind and pattern.
+// Generic "Step" kind matches all specific kinds (Given/When/Then).
+type stepKey struct {
+	kind    string
+	pattern string
+}
+
+// findDuplicateSteps finds duplicate step definitions within and across files.
+// It reports diagnostics for steps that have the same kind+pattern combination.
+// Generic "Step" kind is treated as a wildcard that conflicts with any specific kind.
+func (index *Index) findDuplicateSteps(path string) []Diagnostic {
+	// Build a map of all step definitions across all files
+	// Map structure: kind+pattern -> []location
+	allSteps := make(map[stepKey][]Location)
+
+	for filePath, goFileVersions := range index.GoFiles {
+		goFile := goFileVersions.get()
+		if goFile == nil {
+			continue
+		}
+
+		for _, stepDef := range goFile.AllSteps() {
+			// Skip steps with invalid regex patterns (they already have validation errors)
+			if stepDef.Regexp == nil {
+				continue
+			}
+
+			// For "Step" kind, we need to track it separately for each specific kind it conflicts with
+			if stepDef.Kind == "Step" {
+				// Generic step conflicts with all specific kinds
+				for _, kind := range []string{"Given", "When", "Then", "Step"} {
+					key := stepKey{kind: kind, pattern: stepDef.Pattern}
+					pos := goFile.Position(stepDef.Node.Pos())
+					allSteps[key] = append(allSteps[key], Location{
+						Path:   filePath,
+						Line:   pos.Line,
+						Column: pos.Column,
+					})
+				}
+			} else {
+				// Specific kind: track both the specific kind and the generic "Step" kind
+				for _, kind := range []string{stepDef.Kind, "Step"} {
+					key := stepKey{kind: kind, pattern: stepDef.Pattern}
+					pos := goFile.Position(stepDef.Node.Pos())
+					allSteps[key] = append(allSteps[key], Location{
+						Path:   filePath,
+						Line:   pos.Line,
+						Column: pos.Column,
+					})
+				}
+			}
+		}
+	}
+
+	// Now find duplicates for the requested path
+	var diagnostics []Diagnostic
+
+	versions := index.GoFiles[path]
+	if versions == nil {
+		return diagnostics
+	}
+
+	goFile := versions.get()
+	if goFile == nil {
+		return diagnostics
+	}
+
+	for _, stepDef := range goFile.AllSteps() {
+		// Skip steps with invalid regex patterns
+		if stepDef.Regexp == nil {
+			continue
+		}
+
+		// Check for duplicates with this step's kind+pattern
+		var duplicates []Location
+
+		// For this step, collect all locations that conflict with it
+		if stepDef.Kind == "Step" {
+			// Generic step: check for conflicts with any kind
+			for _, kind := range []string{"Given", "When", "Then", "Step"} {
+				key := stepKey{kind: kind, pattern: stepDef.Pattern}
+				if locs, exists := allSteps[key]; exists {
+					for _, loc := range locs {
+						// Skip the current step itself
+						pos := goFile.Position(stepDef.Node.Pos())
+						if loc.Path == path && loc.Line == pos.Line {
+							continue
+						}
+						// Check if already in duplicates
+						found := false
+						for _, dup := range duplicates {
+							if dup.Path == loc.Path && dup.Line == loc.Line {
+								found = true
+								break
+							}
+						}
+						if !found {
+							duplicates = append(duplicates, loc)
+						}
+					}
+				}
+			}
+		} else {
+			// Specific kind: check for conflicts with same kind and generic "Step"
+			for _, kind := range []string{stepDef.Kind, "Step"} {
+				key := stepKey{kind: kind, pattern: stepDef.Pattern}
+				if locs, exists := allSteps[key]; exists {
+					for _, loc := range locs {
+						// Skip the current step itself
+						pos := goFile.Position(stepDef.Node.Pos())
+						if loc.Path == path && loc.Line == pos.Line {
+							continue
+						}
+						// Check if already in duplicates
+						found := false
+						for _, dup := range duplicates {
+							if dup.Path == loc.Path && dup.Line == loc.Line {
+								found = true
+								break
+							}
+						}
+						if !found {
+							duplicates = append(duplicates, loc)
+						}
+					}
+				}
+			}
+		}
+
+		// If we found duplicates, create a diagnostic
+		if len(duplicates) > 0 {
+			pos := goFile.Position(stepDef.Node.Pos())
+			end := goFile.Position(stepDef.Node.End())
+
+			// Add current step to the list to find the actual first occurrence
+			allOccurrences := append([]Location{{
+				Path:   path,
+				Line:   pos.Line,
+				Column: pos.Column,
+			}}, duplicates...)
+
+			// Find the first occurrence (earliest line in same file, then alphabetically first file)
+			firstOcc := allOccurrences[0]
+			for _, occ := range allOccurrences[1:] {
+				// If both in same file, use earlier line
+				if occ.Path == firstOcc.Path {
+					if occ.Line < firstOcc.Line {
+						firstOcc = occ
+					}
+				} else {
+					// Different files, use alphabetically first
+					if occ.Path < firstOcc.Path {
+						firstOcc = occ
+					}
+				}
+			}
+
+			// All duplicates (including first) report the first occurrence
+			message := fmt.Sprintf("Duplicate step definition: pattern already defined at %s:%d", firstOcc.Path, firstOcc.Line)
+
+			diagnostics = append(diagnostics, Diagnostic{
+				StartLine:   pos.Line,
+				StartColumn: pos.Column,
+				EndLine:     end.Line,
+				EndColumn:   end.Column,
+				Message:     message,
+			})
+		}
+	}
+
 	return diagnostics
 }
 
