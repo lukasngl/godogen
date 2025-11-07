@@ -139,3 +139,84 @@ Feature: Duplicate Step Definitions
       And diagnostic 1 message contains "regex pattern does not compile"
       And diagnostic 0 message does not contain "Duplicate"
       And diagnostic 1 message does not contain "Duplicate"
+
+  Rule: Diagnostics update when duplicates are added or removed
+
+    Scenario: Adding a duplicate step creates diagnostic
+      Given steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+        """
+      When I request diagnostics for steps.go
+      Then I get 0 diagnostics
+      When steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukesAgain(count int) {}
+        """
+      And I request diagnostics for steps.go
+      Then I get 2 diagnostics
+      And diagnostic 0 message contains "Duplicate step definition"
+      And diagnostic 1 message contains "Duplicate step definition"
+
+    Scenario: Removing a duplicate step removes diagnostic
+      Given steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukesAgain(count int) {}
+        """
+      When I request diagnostics for steps.go
+      Then I get 2 diagnostics
+      When steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+        """
+      And I request diagnostics for steps.go
+      Then I get 0 diagnostics
+
+    Scenario: Removing duplicate from one file removes diagnostic from both files
+      Given steps1.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+        """
+      And steps2.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukesAgain(count int) {}
+        """
+      When I request diagnostics for steps1.go
+      Then I get 1 diagnostic
+      When I request diagnostics for steps2.go
+      Then I get 1 diagnostic
+      When steps2.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) melons$
+        func IHaveMelons(count int) {}
+        """
+      And I request diagnostics for steps1.go
+      Then I get 0 diagnostics
+      When I request diagnostics for steps2.go
+      Then I get 0 diagnostics
