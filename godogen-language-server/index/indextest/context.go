@@ -2,6 +2,7 @@ package indextest
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/lukasngl/godogen/godogen-language-server/index"
 )
@@ -66,7 +67,12 @@ func (tc *TestContext) ResultCount() int {
 
 // GetDiagnostics queries for diagnostics at the given path.
 func (tc *TestContext) GetDiagnostics(path string) {
-	tc.diagnostics = tc.index.GetDiagnostics(path)
+	// Check file extension to determine which diagnostics method to call
+	if strings.HasSuffix(path, ".feature") {
+		tc.diagnostics = tc.index.GetFeatureDiagnostics(path)
+	} else {
+		tc.diagnostics = tc.index.GetDiagnostics(path)
+	}
 }
 
 // GetDiagnosticsResult returns the last diagnostics query results.

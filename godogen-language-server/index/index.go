@@ -581,6 +581,7 @@ func (index *Index) findDuplicateSteps(path string) []Diagnostic {
 				EndLine:     end.Line,
 				EndColumn:   end.Column,
 				Message:     message,
+				Severity:    DiagnosticSeverityError,
 			})
 		}
 	}
@@ -605,6 +606,62 @@ func (index *Index) isStepUsed(stepDef godogen.Step) bool {
 	}
 
 	return false
+}
+
+// GetFeatureDiagnostics returns diagnostics for a feature file at the given path.
+// It checks all steps in the feature file and reports errors for steps without matching definitions.
+func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
+	index.mx.RLock()
+	defer index.mx.RUnlock()
+
+	versions := index.Features[path]
+	if versions == nil {
+		return nil
+	}
+
+	featureFile := versions.get()
+	if featureFile == nil {
+		return nil
+	}
+
+	var diagnostics []Diagnostic
+
+	for kind, step := range featureFile.Steps() {
+		// Check if any step definition matches this step
+		hasMatch := false
+
+		for _, goFileVersions := range index.GoFiles {
+			goFile := goFileVersions.get()
+			if goFile == nil {
+				continue
+			}
+
+			for _, stepDef := range goFile.AllSteps() {
+				if stepMatchesDefinition(kind, step, stepDef) {
+					hasMatch = true
+					break
+				}
+			}
+
+			if hasMatch {
+				break
+			}
+		}
+
+		if !hasMatch {
+			// Report diagnostic for undefined step
+			diagnostics = append(diagnostics, Diagnostic{
+				StartLine:   int(step.Location.Line),
+				StartColumn: int(step.Location.Column),
+				EndLine:     int(step.Location.Line),
+				EndColumn:   int(step.Location.Column) + len(step.Keyword) + len(step.Text),
+				Message:     fmt.Sprintf("No step definition found for: %s %s", kind, step.Text),
+				Severity:    DiagnosticSeverityError,
+			})
+		}
+	}
+
+	return diagnostics
 }
 
 // GetGoFile returns the Go file at the given path, or nil if not found.

@@ -232,6 +232,8 @@ func (srv *Server) textDocumentDidOpen(
 		srv.publishDiagnostics(ctx, path)
 	case "cucumber":
 		_ = srv.index.IndexWorkspaceFeatureFile(path, []byte(params.TextDocument.Text))
+		// Push diagnostics for this feature file
+		srv.publishDiagnostics(ctx, path)
 	}
 
 	return nil
@@ -256,6 +258,8 @@ func (srv *Server) textDocumentDidChange(
 		srv.publishDiagnostics(ctx, path)
 	case ".feature":
 		_ = srv.index.IndexWorkspaceFeatureFile(path, []byte(change.Text))
+		// Push diagnostics for this feature file
+		srv.publishDiagnostics(ctx, path)
 	}
 
 	return nil
@@ -287,7 +291,14 @@ func (srv *Server) textDocumentDidClose(
 func (srv *Server) publishDiagnostics(ctx *glsp.Context, path string) {
 	uri := "file://" + path
 
-	indexDiagnostics := srv.index.GetDiagnostics(path)
+	// Get diagnostics based on file type
+	var indexDiagnostics []index.Diagnostic
+	if filepath.Ext(path) == ".feature" {
+		indexDiagnostics = srv.index.GetFeatureDiagnostics(path)
+	} else {
+		indexDiagnostics = srv.index.GetDiagnostics(path)
+	}
+
 	// Initialize with empty slice (not nil) to ensure JSON marshals to [] not null
 	diagnostics := []protocol.Diagnostic{}
 
@@ -306,6 +317,7 @@ func (srv *Server) publishDiagnostics(ctx *glsp.Context, path string) {
 		default:
 			severity = protocol.DiagnosticSeverityWarning
 		}
+
 
 		diagnostics = append(diagnostics, protocol.Diagnostic{
 			Range: protocol.Range{
