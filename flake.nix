@@ -146,6 +146,7 @@
             gofumpt
             gotestsum
             goreleaser
+            syft
           ];
 
           shellHook = ''
