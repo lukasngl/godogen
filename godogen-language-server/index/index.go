@@ -310,6 +310,36 @@ func (index *Index) RemoveDiskFeatureFile(path string) {
 	}
 }
 
+// DiagnosticSeverity represents the severity level of a diagnostic.
+type DiagnosticSeverity int
+
+const (
+	// DiagnosticSeverityError indicates an error.
+	DiagnosticSeverityError DiagnosticSeverity = 1
+	// DiagnosticSeverityWarning indicates a warning.
+	DiagnosticSeverityWarning DiagnosticSeverity = 2
+	// DiagnosticSeverityInformation indicates an informational message.
+	DiagnosticSeverityInformation DiagnosticSeverity = 3
+	// DiagnosticSeverityHint indicates a hint.
+	DiagnosticSeverityHint DiagnosticSeverity = 4
+)
+
+// SeverityToString converts a DiagnosticSeverity to its string representation.
+func (index *Index) SeverityToString(severity DiagnosticSeverity) string {
+	switch severity {
+	case DiagnosticSeverityError:
+		return "Error"
+	case DiagnosticSeverityWarning:
+		return "Warning"
+	case DiagnosticSeverityInformation:
+		return "Information"
+	case DiagnosticSeverityHint:
+		return "Hint"
+	default:
+		return "Unknown"
+	}
+}
+
 // Diagnostic represents a diagnostic message with position information.
 type Diagnostic struct {
 	StartLine   int
@@ -317,6 +347,7 @@ type Diagnostic struct {
 	EndLine     int
 	EndColumn   int
 	Message     string
+	Severity    DiagnosticSeverity
 }
 
 // GetDiagnostics returns validation errors for a Go file at the given path.
@@ -345,10 +376,58 @@ func (index *Index) GetDiagnostics(path string) []Diagnostic {
 			EndLine:     end.Line,
 			EndColumn:   end.Column,
 			Message:     validationErr.Message,
+			Severity:    DiagnosticSeverityError,
 		})
 	}
 
+	// Check for unused step definitions
+	for _, stepFunc := range goFile.StepFuncs {
+		for _, stepDef := range stepFunc.Steps {
+			// Skip invalid patterns - they already have validation errors
+			if stepDef.Regexp == nil {
+				continue
+			}
+
+			// Check if this step is used anywhere
+			if index.isStepUsed(stepDef) {
+				continue
+			}
+
+			// Report as unused with Hint severity
+			start := goFile.Position(stepDef.Node.Pos())
+			end := goFile.Position(stepDef.Node.End())
+
+			diagnostics = append(diagnostics, Diagnostic{
+				StartLine:   start.Line,
+				StartColumn: start.Column,
+				EndLine:     end.Line,
+				EndColumn:   end.Column,
+				Message:     "Step definition is not used in any feature file",
+				Severity:    DiagnosticSeverityHint,
+			})
+		}
+	}
+
 	return diagnostics
+}
+
+// isStepUsed checks if a step definition is used in any feature file.
+// This method assumes the index read lock is already held by the caller.
+func (index *Index) isStepUsed(stepDef godogen.Step) bool {
+	for _, featureFileVersions := range index.Features {
+		featureFile := featureFileVersions.get()
+		if featureFile == nil {
+			continue
+		}
+
+		for kind, step := range featureFile.Steps() {
+			if stepMatchesDefinition(kind, step, stepDef) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // GetGoFile returns the Go file at the given path, or nil if not found.

@@ -288,3 +288,80 @@ func (tc *TestContext) CheckNoHoverContent() error {
 	}
 	return nil
 }
+
+//godogen:then ^diagnostic (\d+) does not contain "([^"]+)"$
+func (tc *TestContext) CheckDiagnosticMessageDoesNotContain(indexStr string, substring string) error {
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return fmt.Errorf("invalid index: %s", indexStr)
+	}
+
+	diagnostics := tc.GetDiagnosticsResult()
+	if index >= len(diagnostics) {
+		return fmt.Errorf(
+			"diagnostic index %d out of range (have %d diagnostics)",
+			index,
+			len(diagnostics),
+		)
+	}
+
+	actualMessage := diagnostics[index].Message
+	if strings.Contains(actualMessage, substring) {
+		return fmt.Errorf("expected message not to contain %q, got %q", substring, actualMessage)
+	}
+
+	return nil
+}
+
+//godogen:then ^diagnostic (\d+) severity is "([^"]+)"$
+func (tc *TestContext) CheckDiagnosticSeverity(indexStr string, severity string) error {
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return fmt.Errorf("invalid index: %s", indexStr)
+	}
+
+	diagnostics := tc.GetDiagnosticsResult()
+	if index >= len(diagnostics) {
+		return fmt.Errorf(
+			"diagnostic index %d out of range (have %d diagnostics)",
+			index,
+			len(diagnostics),
+		)
+	}
+
+	actualSeverity := tc.Index.SeverityToString(diagnostics[index].Severity)
+	if actualSeverity != severity {
+		return fmt.Errorf("expected severity %q, got %q", severity, actualSeverity)
+	}
+
+	return nil
+}
+
+//godogen:then ^diagnostic (\d+) is on line (\d+)$
+func (tc *TestContext) CheckDiagnosticLine(indexStr string, lineStr string) error {
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return fmt.Errorf("invalid index: %s", indexStr)
+	}
+
+	diagnostics := tc.GetDiagnosticsResult()
+	if index >= len(diagnostics) {
+		return fmt.Errorf(
+			"diagnostic index %d out of range (have %d diagnostics)",
+			index,
+			len(diagnostics),
+		)
+	}
+
+	expectedLine, err := strconv.Atoi(lineStr)
+	if err != nil {
+		return fmt.Errorf("invalid line number: %s", lineStr)
+	}
+
+	actualLine := diagnostics[index].StartLine
+	if actualLine != expectedLine {
+		return fmt.Errorf("expected line %d, got %d", expectedLine, actualLine)
+	}
+
+	return nil
+}
