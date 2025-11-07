@@ -351,10 +351,17 @@ type Diagnostic struct {
 }
 
 // GetDiagnostics returns validation errors for a Go file at the given path.
+// If the path is a feature file, returns feature-specific diagnostics.
 func (index *Index) GetDiagnostics(path string) []Diagnostic {
 	index.mx.RLock()
 	defer index.mx.RUnlock()
 
+	// Check if it's a feature file
+	if filepath.Ext(path) == ".feature" {
+		return index.GetFeatureDiagnostics(path)
+	}
+
+	// Otherwise, check if it's a Go file
 	versions := index.GoFiles[path]
 	if versions == nil {
 		return nil
@@ -633,29 +640,29 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 			continue
 		}
 
-		// Check if any step definition matches this step
-		hasMatch := false
+		// Find all matching step definitions
+		var matchingLocs []Location
 
-		for _, goFileVersions := range index.GoFiles {
+		for goPath, goFileVersions := range index.GoFiles {
 			goFile := goFileVersions.get()
 			if goFile == nil {
 				continue
 			}
 
-			for _, stepDef := range goFile.AllSteps() {
+			for stepFunc, stepDef := range goFile.AllSteps() {
 				if stepMatchesDefinition(kind, step, stepDef) {
-					hasMatch = true
-					break
+					pos := goFile.Position(stepFunc.Node.Pos())
+					matchingLocs = append(matchingLocs, Location{
+						Path:   goPath,
+						Line:   pos.Line,
+						Column: pos.Column,
+					})
 				}
-			}
-
-			if hasMatch {
-				break
 			}
 		}
 
-		if !hasMatch {
-			// Report diagnostic for undefined step
+		// Check for undefined steps
+		if len(matchingLocs) == 0 {
 			diagnostics = append(diagnostics, Diagnostic{
 				StartLine:   int(step.Location.Line),
 				StartColumn: int(step.Location.Column),
@@ -663,6 +670,29 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 				EndColumn:   int(step.Location.Column) + len(step.Keyword) + len(step.Text),
 				Message:     fmt.Sprintf("No step definition found for: %s %s", kind, step.Text),
 				Severity:    DiagnosticSeverityError,
+			})
+			continue
+		}
+
+		// Check for ambiguous steps (multiple matches)
+		if len(matchingLocs) > 1 {
+			// Format locations as "file:line"
+			var locStrings []string
+			for _, loc := range matchingLocs {
+				locStrings = append(locStrings, fmt.Sprintf("%s:%d", loc.Path, loc.Line))
+			}
+
+			message := fmt.Sprintf("Ambiguous step: matches %d definitions (%s)",
+				len(matchingLocs),
+				strings.Join(locStrings, ", "))
+
+			diagnostics = append(diagnostics, Diagnostic{
+				StartLine:   int(step.Location.Line),
+				StartColumn: int(step.Location.Column),
+				EndLine:     int(step.Location.Line),
+				EndColumn:   int(step.Location.Column) + len(step.Keyword) + len(step.Text),
+				Message:     message,
+				Severity:    DiagnosticSeverityWarning,
 			})
 		}
 	}

@@ -318,7 +318,6 @@ func (srv *Server) publishDiagnostics(ctx *glsp.Context, path string) {
 			severity = protocol.DiagnosticSeverityWarning
 		}
 
-
 		diagnostics = append(diagnostics, protocol.Diagnostic{
 			Range: protocol.Range{
 				Start: protocol.Position{

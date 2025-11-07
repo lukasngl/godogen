@@ -99,7 +99,7 @@ Feature: Ambiguous Step Matches
         """
       When I request diagnostics for test.feature
       Then I get 1 diagnostic
-      And diagnostic 0 message is "Ambiguous step: matches 2 definitions"
+      And diagnostic 0 message is "Ambiguous step: matches 2 definitions (steps.go:3, steps.go:6)"
 
     Scenario: Different step kinds do not create ambiguity
       Given test.feature is added to the workspace:
@@ -141,9 +141,9 @@ Feature: Ambiguous Step Matches
         """
       When I request diagnostics for test.feature
       Then I get 2 diagnostics
-      And diagnostic 0 message is "Ambiguous step: matches 2 definitions"
+      And diagnostic 0 message is "Ambiguous step: matches 2 definitions (steps.go:3, steps.go:6)"
       And diagnostic 0 is on line 3
-      And diagnostic 1 message is "Ambiguous step: matches 2 definitions"
+      And diagnostic 1 message is "Ambiguous step: matches 2 definitions (steps.go:3, steps.go:6)"
       And diagnostic 1 is on line 4
 
   Rule: Ambiguity across files is detected
