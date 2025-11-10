@@ -8,7 +8,7 @@ Feature: Finding step definitions
     Step (universal) patterns match all kinds
 
     Scenario: Find step definition for Given step
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -28,7 +28,7 @@ Feature: Finding step definitions
         | steps.go | 4    | 1      |
 
     Scenario: Find step definition for When step
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -48,7 +48,7 @@ Feature: Finding step definitions
         | steps.go | 4    | 1      |
 
     Scenario: Find step definition for Then step
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -68,7 +68,7 @@ Feature: Finding step definitions
         | steps.go | 4    | 1      |
 
     Scenario: Step kind matches Step universal pattern
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -94,7 +94,7 @@ Feature: Finding step definitions
     And/But steps inherit the kind from the previous step
 
     Scenario: Find step definition with And conjunction
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -118,7 +118,7 @@ Feature: Finding step definitions
     Regex patterns must match step text
 
     Scenario: No matching step definition
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -135,7 +135,7 @@ Feature: Finding step definitions
       Then I get 0 results
 
     Scenario: Multiple step definitions match
-      When steps1.go is added to the workspace:
+      Given steps1.go is added to the workspace:
         """
         package steps
 
@@ -162,7 +162,7 @@ Feature: Finding step definitions
     Workspace files override disk files for queries
 
     Scenario: Workspace file overrides disk file
-      When steps.go is added to the filesystem:
+      Given steps.go is added to the filesystem:
         """
         package steps
 
@@ -189,7 +189,7 @@ Feature: Finding step definitions
         | steps.go | 4    | 1      |
 
     Scenario: Closing workspace file shows disk file
-      When steps.go is added to the filesystem:
+      Given steps.go is added to the filesystem:
         """
         package steps
 
@@ -217,7 +217,7 @@ Feature: Finding step definitions
         | steps.go | 4    | 1      |
 
     Scenario: Disk file changes while workspace file exists
-      When steps.go is added to the filesystem:
+      Given steps.go is added to the filesystem:
         """
         package steps
 

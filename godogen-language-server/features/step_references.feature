@@ -8,7 +8,7 @@ Feature: Finding step references
     Step (universal) patterns match all kinds
 
     Scenario: Find references for Given step pattern
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -28,7 +28,7 @@ Feature: Finding step references
         | example.feature | 3    | 5      |
 
     Scenario: Find references for When step pattern
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -48,7 +48,7 @@ Feature: Finding step references
         | example.feature | 3    | 5      |
 
     Scenario: Find references for Then step pattern
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -68,7 +68,7 @@ Feature: Finding step references
         | example.feature | 3    | 5      |
 
     Scenario: Step universal pattern matches all kinds
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -95,7 +95,7 @@ Feature: Finding step references
     And/But steps inherit the kind from the previous step
 
     Scenario: And conjunction inherits previous step kind
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -120,7 +120,7 @@ Feature: Finding step references
     Regex patterns must match step text
 
     Scenario: No references to pattern
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -137,7 +137,7 @@ Feature: Finding step references
       Then I get 0 results
 
     Scenario: Multiple references to same pattern
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -160,7 +160,7 @@ Feature: Finding step references
         | example.feature | 5    | 5      |
 
     Scenario: References in multiple feature files
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -186,7 +186,7 @@ Feature: Finding step references
     Clicking on a pattern comment returns references for that specific pattern only
 
     Scenario: Find references from specific pattern with multiple patterns
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -211,7 +211,7 @@ Feature: Finding step references
     Clicking on a function declaration returns references for all patterns on that function
 
     Scenario: Find references from function declaration
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -231,7 +231,7 @@ Feature: Finding step references
         | example.feature | 3    | 5      |
 
     Scenario: Find references from function with multiple step patterns
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -254,7 +254,7 @@ Feature: Finding step references
         | example.feature | 4    | 5      |
 
     Scenario: No references from function body
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -273,7 +273,7 @@ Feature: Finding step references
       Then I get 0 results
 
     Scenario Outline: Clicking on <scenario> of one-liner function
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -300,7 +300,7 @@ Feature: Finding step references
         | opening brace           | 32     | 0     |
 
     Scenario Outline: Clicking on <scenario> of multi-line function
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -334,7 +334,7 @@ Feature: Finding step references
     Workspace files override disk files for queries
 
     Scenario: Workspace Go file overrides disk file
-      When steps.go is added to the filesystem:
+      Given steps.go is added to the filesystem:
         """
         package steps
 
@@ -361,7 +361,7 @@ Feature: Finding step references
         | example.feature | 3    | 5      |
 
     Scenario: Workspace feature file overrides disk file
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
