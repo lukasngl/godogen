@@ -152,7 +152,7 @@ Feature: Duplicate Step Definitions
         """
       When I request diagnostics for steps.go
       Then I get 0 diagnostics
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -180,7 +180,7 @@ Feature: Duplicate Step Definitions
         """
       When I request diagnostics for steps.go
       Then I get 2 diagnostics
-      When steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -209,7 +209,7 @@ Feature: Duplicate Step Definitions
       Then I get 1 diagnostic
       When I request diagnostics for steps2.go
       Then I get 1 diagnostic
-      When steps2.go is added to the workspace:
+      Given steps2.go is added to the workspace:
         """
         package steps
 

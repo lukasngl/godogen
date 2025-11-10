@@ -10,12 +10,12 @@ import (
 	"github.com/cucumber/godog"
 )
 
-//godogen:when ^(.+) is added to the workspace:$
+//godogen:given ^(.+) is added to the workspace:$
 func (tc *TestContext) AddFileToWorkspace(path string, content *godog.DocString) error {
 	return tc.addFileToWorkspace(path, content.Content)
 }
 
-//godogen:when ^(.+) is added to the filesystem:$
+//godogen:given ^(.+) is added to the filesystem:$
 func (tc *TestContext) AddFileToFilesystem(path string, content *godog.DocString) error {
 	return tc.addFileToDisk(path, content.Content)
 }
@@ -74,12 +74,12 @@ func (tc *TestContext) RequestStepReferences(path string, lineStr string, column
 	return nil
 }
 
-//godogen:when ^(.+) is updated on the filesystem:$
+//godogen:step ^(.+) is updated on the filesystem:$
 func (tc *TestContext) UpdateFileOnFilesystem(path string, content *godog.DocString) error {
 	return tc.addFileToDisk(path, content.Content)
 }
 
-//godogen:when ^(.+) workspace version is removed$
+//godogen:step ^(.+) workspace version is removed$
 func (tc *TestContext) RemoveWorkspaceVersion(path string) error {
 	ext := filepath.Ext(path)
 	switch ext {
@@ -176,7 +176,7 @@ func (tc *TestContext) CheckResults(table *godog.Table) error {
 	return nil
 }
 
-//godogen:when ^I request diagnostics for (.+)$
+//godogen:step ^I request diagnostics for (.+)$
 func (tc *TestContext) RequestDiagnostics(path string) error {
 	tc.GetDiagnostics(path)
 	return nil
@@ -293,7 +293,14 @@ func (tc *TestContext) CheckNoHoverContent() error {
 	return nil
 }
 
-//
+//godogen:then ^diagnostic (\d+) message does not contain "([^"]+)"$
+func (tc *TestContext) CheckDiagnosticMessageDoesNotContainVerbose(
+	indexStr string,
+	substring string,
+) error {
+	return tc.CheckDiagnosticMessageDoesNotContain(indexStr, substring)
+}
+
 //godogen:then ^diagnostic (\d+) does not contain "([^"]+)"$
 func (tc *TestContext) CheckDiagnosticMessageDoesNotContain(
 	indexStr string,
@@ -373,15 +380,15 @@ func (tc *TestContext) CheckDiagnosticLine(indexStr string, lineStr string) erro
 
 	return nil
 }
-//godogen:when ^I request document symbols for (.+)$
-func (tc *TestContext) RequestDocumentSymbols(path string) error {
-	tc.GetDocumentSymbols(path, false)
-	return nil
-}
-
 //godogen:when ^I request document symbols for (.+) with hierarchy$
 func (tc *TestContext) RequestDocumentSymbolsWithHierarchy(path string) error {
 	tc.GetDocumentSymbols(path, true)
+	return nil
+}
+
+//godogen:when ^I request document symbols for ([^ ]+)$
+func (tc *TestContext) RequestDocumentSymbols(path string) error {
+	tc.GetDocumentSymbols(path, false)
 	return nil
 }
 
@@ -465,7 +472,7 @@ func (tc *TestContext) CheckSymbolLine(indexStr string, lineStr string) error {
 	return nil
 }
 
-//godogen:then ^symbol (\d+) has (\d+) children?$
+//godogen:then ^symbol (\d+) has (\d+) child(?:ren)?$
 func (tc *TestContext) CheckSymbolChildCount(indexStr string, countStr string) error {
 	index, err := strconv.Atoi(indexStr)
 	if err != nil {
