@@ -166,4 +166,4 @@ Feature: Step Signature Diagnostics
         func IHaveCukes(count int, ctx context.Context, invalid bool) int { return 0 }
         """
       When I request diagnostics for steps.go
-      Then I get 3 diagnostics
+      Then I get 4 diagnostics

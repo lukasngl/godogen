@@ -57,7 +57,7 @@ Feature: Document Symbols
       And symbol 0 name is "Given: ^I have (\\d+) cukes$"
       And symbol 0 is on line 3
       And symbol 1 name is "Given: ^I have (\\d+) melons$"
-      And symbol 1 is on line 3
+      And symbol 1 is on line 4
 
     Scenario: Hooks appear in symbol list
       Given steps.go is added to the workspace:
