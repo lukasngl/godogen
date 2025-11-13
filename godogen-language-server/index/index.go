@@ -13,6 +13,7 @@ import (
 	"iter"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -387,37 +388,52 @@ func (index *Index) GetDiagnostics(path string) []Diagnostic {
 		})
 	}
 
-	// Check for unused step definitions
-	for _, stepFunc := range goFile.StepFuncs {
-		for _, stepDef := range stepFunc.Steps {
-			// Skip invalid patterns - they already have validation errors
-			if stepDef.Regexp == nil {
-				continue
-			}
-
-			// Check if this step is used anywhere
-			if index.isStepUsed(stepDef) {
-				continue
-			}
-
-			// Report as unused with Hint severity
-			start := goFile.Position(stepDef.Node.Pos())
-			end := goFile.Position(stepDef.Node.End())
-
-			diagnostics = append(diagnostics, Diagnostic{
-				StartLine:   start.Line,
-				StartColumn: start.Column,
-				EndLine:     end.Line,
-				EndColumn:   end.Column,
-				Message:     "Step definition is not used in any feature file",
-				Severity:    DiagnosticSeverityHint,
-			})
-		}
-	}
-
-	// Check for duplicate step definitions
+	// Check for duplicate step definitions first
 	duplicateDiags := index.findDuplicateSteps(path)
 	diagnostics = append(diagnostics, duplicateDiags...)
+
+	// Build set of lines with duplicate errors to skip in unused check
+	duplicateLines := make(map[int]bool)
+	for _, diag := range duplicateDiags {
+		duplicateLines[diag.StartLine] = true
+	}
+
+	// Check for unused step definitions (only if there are feature files to use them)
+	// Skip this check if there are no feature files at all
+	hasFeatureFiles := len(index.Features) > 0
+	if hasFeatureFiles {
+		for _, stepFunc := range goFile.StepFuncs {
+			for _, stepDef := range stepFunc.Steps {
+				// Skip invalid patterns - they already have validation errors
+				if stepDef.Regexp == nil {
+					continue
+				}
+
+				// Skip if this step has a duplicate error
+				start := goFile.Position(stepDef.Node.Pos())
+				if duplicateLines[start.Line] {
+					continue
+				}
+
+				// Check if this step is used anywhere
+				if index.isStepUsed(stepDef) {
+					continue
+				}
+
+				// Report as unused with Hint severity
+				end := goFile.Position(stepDef.Node.End())
+
+				diagnostics = append(diagnostics, Diagnostic{
+					StartLine:   start.Line,
+					StartColumn: start.Column,
+					EndLine:     end.Line,
+					EndColumn:   end.Column,
+					Message:     "Step definition is not used in any feature file",
+					Severity:    DiagnosticSeverityHint,
+				})
+			}
+		}
+	}
 
 	return diagnostics
 }
@@ -449,30 +465,14 @@ func (index *Index) findDuplicateSteps(path string) []Diagnostic {
 				continue
 			}
 
-			// For "Step" kind, we need to track it separately for each specific kind it conflicts with
-			if stepDef.Kind == "Step" {
-				// Generic step conflicts with all specific kinds
-				for _, kind := range []string{"Given", "When", "Then", "Step"} {
-					key := stepKey{kind: kind, pattern: stepDef.Pattern}
-					pos := goFile.Position(stepDef.Node.Pos())
-					allSteps[key] = append(allSteps[key], Location{
-						Path:   filePath,
-						Line:   pos.Line,
-						Column: pos.Column,
-					})
-				}
-			} else {
-				// Specific kind: track both the specific kind and the generic "Step" kind
-				for _, kind := range []string{stepDef.Kind, "Step"} {
-					key := stepKey{kind: kind, pattern: stepDef.Pattern}
-					pos := goFile.Position(stepDef.Node.Pos())
-					allSteps[key] = append(allSteps[key], Location{
-						Path:   filePath,
-						Line:   pos.Line,
-						Column: pos.Column,
-					})
-				}
-			}
+			// Track step under its own kind only
+			key := stepKey{kind: stepDef.Kind, pattern: stepDef.Pattern}
+			pos := goFile.Position(stepDef.Node.Pos())
+			allSteps[key] = append(allSteps[key], Location{
+				Path:   filePath,
+				Line:   pos.Line,
+				Column: pos.Column,
+			})
 		}
 	}
 
@@ -498,18 +498,13 @@ func (index *Index) findDuplicateSteps(path string) []Diagnostic {
 		// Check for duplicates with this step's kind+pattern
 		var duplicates []Location
 
-		// For this step, collect all locations that conflict with it
+		// For this step, collect all locations that conflict with it (including itself)
 		if stepDef.Kind == "Step" {
 			// Generic step: check for conflicts with any kind
 			for _, kind := range []string{"Given", "When", "Then", "Step"} {
 				key := stepKey{kind: kind, pattern: stepDef.Pattern}
 				if locs, exists := allSteps[key]; exists {
 					for _, loc := range locs {
-						// Skip the current step itself
-						pos := goFile.Position(stepDef.Node.Pos())
-						if loc.Path == path && loc.Line == pos.Line {
-							continue
-						}
 						// Check if already in duplicates
 						found := false
 						for _, dup := range duplicates {
@@ -530,11 +525,6 @@ func (index *Index) findDuplicateSteps(path string) []Diagnostic {
 				key := stepKey{kind: kind, pattern: stepDef.Pattern}
 				if locs, exists := allSteps[key]; exists {
 					for _, loc := range locs {
-						// Skip the current step itself
-						pos := goFile.Position(stepDef.Node.Pos())
-						if loc.Path == path && loc.Line == pos.Line {
-							continue
-						}
 						// Check if already in duplicates
 						found := false
 						for _, dup := range duplicates {
@@ -551,36 +541,39 @@ func (index *Index) findDuplicateSteps(path string) []Diagnostic {
 			}
 		}
 
-		// If we found duplicates, create a diagnostic
-		if len(duplicates) > 0 {
+		// If we found more than one location (duplicates), create a diagnostic
+		// Since we include the current step, len > 1 means there are duplicates
+		if len(duplicates) > 1 {
 			pos := goFile.Position(stepDef.Node.Pos())
 			end := goFile.Position(stepDef.Node.End())
 
-			// Add current step to the list to find the actual first occurrence
-			allOccurrences := append([]Location{{
-				Path:   path,
-				Line:   pos.Line,
-				Column: pos.Column,
-			}}, duplicates...)
+			// Sort duplicates for consistent ordering
+			slices.SortFunc(duplicates, func(a, b Location) int {
+				if a.Path != b.Path {
+					return strings.Compare(a.Path, b.Path)
+				}
+				return a.Line - b.Line
+			})
 
-			// Find the first occurrence (earliest line in same file, then alphabetically first file)
-			firstOcc := allOccurrences[0]
-			for _, occ := range allOccurrences[1:] {
-				// If both in same file, use earlier line
-				if occ.Path == firstOcc.Path {
-					if occ.Line < firstOcc.Line {
-						firstOcc = occ
-					}
-				} else {
-					// Different files, use alphabetically first
-					if occ.Path < firstOcc.Path {
-						firstOcc = occ
+			// Determine which location to point to:
+			// - For same-file duplicates: point to the first occurrence
+			// - For cross-file duplicates: point to a different file if current is first
+			currentLoc := Location{Path: path, Line: pos.Line, Column: pos.Column}
+			pointTo := duplicates[0]
+
+			// If current step is the first occurrence and there are cross-file duplicates,
+			// point to the first one from a different file
+			if pointTo.Path == currentLoc.Path && pointTo.Line == currentLoc.Line {
+				for _, loc := range duplicates[1:] {
+					if loc.Path != path {
+						pointTo = loc
+						break
 					}
 				}
+				// If all duplicates are in the same file, just point to the first (self)
 			}
 
-			// All duplicates (including first) report the first occurrence
-			message := fmt.Sprintf("Duplicate step definition: pattern already defined at %s:%d", firstOcc.Path, firstOcc.Line)
+			message := fmt.Sprintf("Duplicate step definition: pattern already defined at %s:%d", pointTo.Path, pointTo.Line)
 
 			diagnostics = append(diagnostics, Diagnostic{
 				StartLine:   pos.Line,
@@ -663,12 +656,14 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 
 		// Check for undefined steps
 		if len(matchingLocs) == 0 {
+			// Use the original keyword from the file (e.g., "But") not the inherited kind (e.g., "Given")
+			keyword := strings.TrimSpace(step.Keyword)
 			diagnostics = append(diagnostics, Diagnostic{
 				StartLine:   int(step.Location.Line),
 				StartColumn: int(step.Location.Column),
 				EndLine:     int(step.Location.Line),
 				EndColumn:   int(step.Location.Column) + len(step.Keyword) + len(step.Text),
-				Message:     fmt.Sprintf("No step definition found for: %s %s", kind, step.Text),
+				Message:     fmt.Sprintf("No step definition found for: %s %s", keyword, step.Text),
 				Severity:    DiagnosticSeverityError,
 			})
 			continue
@@ -676,6 +671,14 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 
 		// Check for ambiguous steps (multiple matches)
 		if len(matchingLocs) > 1 {
+			// Sort locations by path then line for consistent output
+			slices.SortFunc(matchingLocs, func(a, b Location) int {
+				if a.Path != b.Path {
+					return strings.Compare(a.Path, b.Path)
+				}
+				return a.Line - b.Line
+			})
+
 			// Format locations as "file:line"
 			var locStrings []string
 			for _, loc := range matchingLocs {
@@ -1008,7 +1011,8 @@ func (index *Index) GetHoverInfoForFeature(featurePath string, line int, column 
 					continue
 				}
 
-				funcPos := goFile.Position(stepDef.Node.Pos())
+				// Use function line for hover display (users expect to see where the function is)
+				funcPos := goFile.Position(stepFunc.Node.Pos())
 				matches = append(matches, stepDefMatch{
 					path:     path,
 					stepFunc: stepFunc,
@@ -1160,7 +1164,7 @@ func formatAmbiguousStepDefs(matches []stepDefMatch) string {
 
 		filename := filepath.Base(match.path)
 		content.WriteString(fmt.Sprintf("**File:** %s:%d\n", filename, match.line))
-		content.WriteString(fmt.Sprintf("**Pattern:** `%s`", match.stepDef.Pattern))
+		content.WriteString(fmt.Sprintf("**Pattern:** `%s`\n", match.stepDef.Pattern))
 	}
 
 	return content.String()
@@ -1196,17 +1200,35 @@ func formatStepUsage(stepDef godogen.Step, refs []stepRefLocation) string {
 func formatFunctionSignature(fset *token.FileSet, funcDecl *ast.FuncDecl) string {
 	var buf bytes.Buffer
 
-	// Write function keyword and name
-	buf.WriteString("func ")
-	buf.WriteString(funcDecl.Name.Name)
+	// Create a copy of the function declaration without doc comments
+	funcDeclCopy := *funcDecl
+	funcDeclCopy.Doc = nil
 
-	// Write function type (parameters and return values)
-	if err := format.Node(&buf, fset, funcDecl.Type); err != nil {
+	// Format the function declaration without doc
+	if err := format.Node(&buf, fset, &funcDeclCopy); err != nil {
 		// Fallback to just the name if formatting fails
 		return "func " + funcDecl.Name.Name
 	}
 
-	return buf.String()
+	// Extract just the signature (first line before the body)
+	fullText := buf.String()
+
+	// Find the opening brace or end of signature
+	lines := strings.Split(fullText, "\n")
+	if len(lines) > 0 {
+		// The first line is the signature
+		sig := strings.TrimSpace(lines[0])
+
+		// Remove trailing body markers if present
+		sig = strings.TrimSuffix(sig, " {}")
+		sig = strings.TrimSuffix(sig, "{}")
+		sig = strings.TrimSuffix(sig, " {")
+		sig = strings.TrimSuffix(sig, "{")
+
+		return strings.TrimSpace(sig)
+	}
+
+	return fullText
 }
 
 // DocumentSymbol represents a symbol in a document for the document symbols feature.

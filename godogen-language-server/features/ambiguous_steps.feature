@@ -127,7 +127,7 @@ Feature: Ambiguous Step Matches
         Feature: Test
           Scenario: Shopping
             Given I have 5 cukes
-            And I have 3 melons
+            And I have 5 melons
         """
       And steps.go is added to the workspace:
         """
@@ -136,14 +136,17 @@ Feature: Ambiguous Step Matches
         //godogen:given ^I have (\d+) cukes$
         func IHaveCukes(count int) {}
 
+        //godogen:given ^I have (\d+) melons$
+        func IHaveMelons(count int) {}
+
         //godogen:given ^I have (\d+) \w+$
         func IHaveSomething(count int) {}
         """
       When I request diagnostics for test.feature
       Then I get 2 diagnostics
-      And diagnostic 0 message is "Ambiguous step: matches 2 definitions (steps.go:3, steps.go:6)"
+      And diagnostic 0 message is "Ambiguous step: matches 2 definitions (steps.go:3, steps.go:9)"
       And diagnostic 0 is on line 3
-      And diagnostic 1 message is "Ambiguous step: matches 2 definitions (steps.go:3, steps.go:6)"
+      And diagnostic 1 message is "Ambiguous step: matches 2 definitions (steps.go:6, steps.go:9)"
       And diagnostic 1 is on line 4
 
   Rule: Ambiguity across files is detected
