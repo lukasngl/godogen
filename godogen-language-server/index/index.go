@@ -111,7 +111,17 @@ func (ffv *FeatureFileVersions) get() *FeatureFile {
 // The file type is explicitly known to be Go, so no extension checking is performed.
 // If the file contains no godogen directives, any existing workspace version is removed.
 func (index *Index) IndexWorkspaceGoFile(path string, content []byte) error {
-	slog.Debug("indexing file", "component", "index", "path", path, "isWorkspace", true, "type", "go")
+	slog.Debug(
+		"indexing file",
+		"component",
+		"index",
+		"path",
+		path,
+		"isWorkspace",
+		true,
+		"type",
+		"go",
+	)
 
 	if !bytes.Contains(content, []byte("\n//godogen:")) {
 		slog.Debug("no directives found", "component", "index", "path", path)
@@ -144,7 +154,17 @@ func (index *Index) IndexWorkspaceGoFile(path string, content []byte) error {
 // IndexDiskGoFile indexes a Go file from disk.
 // If the file contains no godogen directives, any existing disk version is removed.
 func (index *Index) IndexDiskGoFile(path string, content []byte) error {
-	slog.Debug("indexing file", "component", "index", "path", path, "isWorkspace", false, "type", "go")
+	slog.Debug(
+		"indexing file",
+		"component",
+		"index",
+		"path",
+		path,
+		"isWorkspace",
+		false,
+		"type",
+		"go",
+	)
 
 	if !bytes.Contains(content, []byte("\n//godogen:")) {
 		slog.Debug("no directives found", "component", "index", "path", path)
@@ -177,7 +197,17 @@ func (index *Index) IndexDiskGoFile(path string, content []byte) error {
 // RemoveWorkspaceGoFile removes the workspace version of a Go file from the index.
 // If both workspace and disk versions are nil after removal, the file entry is deleted entirely.
 func (index *Index) RemoveWorkspaceGoFile(path string) {
-	slog.Debug("removing file", "component", "index", "path", path, "isWorkspace", true, "type", "go")
+	slog.Debug(
+		"removing file",
+		"component",
+		"index",
+		"path",
+		path,
+		"isWorkspace",
+		true,
+		"type",
+		"go",
+	)
 
 	index.mx.Lock()
 	defer index.mx.Unlock()
@@ -198,7 +228,17 @@ func (index *Index) RemoveWorkspaceGoFile(path string) {
 // RemoveDiskGoFile removes the disk version of a Go file from the index.
 // If both workspace and disk versions are nil after removal, the file entry is deleted entirely.
 func (index *Index) RemoveDiskGoFile(path string) {
-	slog.Debug("removing file", "component", "index", "path", path, "isWorkspace", false, "type", "go")
+	slog.Debug(
+		"removing file",
+		"component",
+		"index",
+		"path",
+		path,
+		"isWorkspace",
+		false,
+		"type",
+		"go",
+	)
 
 	index.mx.Lock()
 	defer index.mx.Unlock()
@@ -219,7 +259,17 @@ func (index *Index) RemoveDiskGoFile(path string) {
 // IndexWorkspaceFeatureFile indexes a Gherkin feature file from the workspace (LSP client).
 // The file type is explicitly known to be a feature file, so no extension checking is performed.
 func (index *Index) IndexWorkspaceFeatureFile(path string, content []byte) error {
-	slog.Debug("indexing file", "component", "index", "path", path, "isWorkspace", true, "type", "feature")
+	slog.Debug(
+		"indexing file",
+		"component",
+		"index",
+		"path",
+		path,
+		"isWorkspace",
+		true,
+		"type",
+		"feature",
+	)
 
 	reader := bytes.NewReader(content)
 
@@ -245,7 +295,17 @@ func (index *Index) IndexWorkspaceFeatureFile(path string, content []byte) error
 
 // IndexDiskFeatureFile indexes a Gherkin feature file from disk.
 func (index *Index) IndexDiskFeatureFile(path string, content []byte) error {
-	slog.Debug("indexing file", "component", "index", "path", path, "isWorkspace", false, "type", "feature")
+	slog.Debug(
+		"indexing file",
+		"component",
+		"index",
+		"path",
+		path,
+		"isWorkspace",
+		false,
+		"type",
+		"feature",
+	)
 
 	reader := bytes.NewReader(content)
 
@@ -272,7 +332,17 @@ func (index *Index) IndexDiskFeatureFile(path string, content []byte) error {
 // RemoveWorkspaceFeatureFile removes the workspace version of a feature file from the index.
 // If both workspace and disk versions are nil after removal, the file entry is deleted entirely.
 func (index *Index) RemoveWorkspaceFeatureFile(path string) {
-	slog.Debug("removing file", "component", "index", "path", path, "isWorkspace", true, "type", "feature")
+	slog.Debug(
+		"removing file",
+		"component",
+		"index",
+		"path",
+		path,
+		"isWorkspace",
+		true,
+		"type",
+		"feature",
+	)
 
 	index.mx.Lock()
 	defer index.mx.Unlock()
@@ -293,7 +363,17 @@ func (index *Index) RemoveWorkspaceFeatureFile(path string) {
 // RemoveDiskFeatureFile removes the disk version of a feature file from the index.
 // If both workspace and disk versions are nil after removal, the file entry is deleted entirely.
 func (index *Index) RemoveDiskFeatureFile(path string) {
-	slog.Debug("removing file", "component", "index", "path", path, "isWorkspace", false, "type", "feature")
+	slog.Debug(
+		"removing file",
+		"component",
+		"index",
+		"path",
+		path,
+		"isWorkspace",
+		false,
+		"type",
+		"feature",
+	)
 
 	index.mx.Lock()
 	defer index.mx.Unlock()
@@ -341,14 +421,23 @@ func (index *Index) SeverityToString(severity DiagnosticSeverity) string {
 	}
 }
 
+// DiagnosticRelatedInformation represents additional location information related to a diagnostic.
+type DiagnosticRelatedInformation struct {
+	Path    string
+	Line    int
+	Column  int
+	Message string
+}
+
 // Diagnostic represents a diagnostic message with position information.
 type Diagnostic struct {
-	StartLine   int
-	StartColumn int
-	EndLine     int
-	EndColumn   int
-	Message     string
-	Severity    DiagnosticSeverity
+	StartLine          int
+	StartColumn        int
+	EndLine            int
+	EndColumn          int
+	Message            string
+	Severity           DiagnosticSeverity
+	RelatedInformation []DiagnosticRelatedInformation
 }
 
 // GetDiagnostics returns validation errors for a Go file at the given path.
@@ -573,7 +662,11 @@ func (index *Index) findDuplicateSteps(path string) []Diagnostic {
 				// If all duplicates are in the same file, just point to the first (self)
 			}
 
-			message := fmt.Sprintf("Duplicate step definition: pattern already defined at %s:%d", pointTo.Path, pointTo.Line)
+			message := fmt.Sprintf(
+				"Duplicate step definition: pattern already defined at %s:%d",
+				pointTo.Path,
+				pointTo.Line,
+			)
 
 			diagnostics = append(diagnostics, Diagnostic{
 				StartLine:   pos.Line,
@@ -657,15 +750,25 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 		// Check for undefined steps
 		if len(matchingLocs) == 0 {
 			// Use the original keyword from the file (e.g., "But") not the inherited kind (e.g., "Given")
-			keyword := strings.TrimSpace(step.Keyword)
-			diagnostics = append(diagnostics, Diagnostic{
+			keyword := strings.TrimSpace(step.Step.Keyword)
+			diag := Diagnostic{
 				StartLine:   int(step.Location.Line),
 				StartColumn: int(step.Location.Column),
 				EndLine:     int(step.Location.Line),
-				EndColumn:   int(step.Location.Column) + len(step.Keyword) + len(step.Text),
-				Message:     fmt.Sprintf("No step definition found for: %s %s", keyword, step.Text),
+				EndColumn:   int(step.Location.Column) + len(step.Step.Keyword) + len(step.Step.Text),
+				Message:     fmt.Sprintf("No step definition found for: %s %s", keyword, step.Step.Text),
 				Severity:    DiagnosticSeverityError,
-			})
+			}
+			// Add related info for Scenario Outline steps
+			if step.ExampleRow != nil {
+				diag.RelatedInformation = []DiagnosticRelatedInformation{{
+					Path:    path,
+					Line:    int(step.ExampleRow.Location.Line),
+					Column:  int(step.ExampleRow.Location.Column),
+					Message: "for the values of this example",
+				}}
+			}
+			diagnostics = append(diagnostics, diag)
 			continue
 		}
 
@@ -689,14 +792,24 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 				len(matchingLocs),
 				strings.Join(locStrings, ", "))
 
-			diagnostics = append(diagnostics, Diagnostic{
+			diag := Diagnostic{
 				StartLine:   int(step.Location.Line),
 				StartColumn: int(step.Location.Column),
 				EndLine:     int(step.Location.Line),
-				EndColumn:   int(step.Location.Column) + len(step.Keyword) + len(step.Text),
+				EndColumn:   int(step.Location.Column) + len(step.Step.Keyword) + len(step.Step.Text),
 				Message:     message,
 				Severity:    DiagnosticSeverityWarning,
-			})
+			}
+			// Add related info for Scenario Outline steps
+			if step.ExampleRow != nil {
+				diag.RelatedInformation = []DiagnosticRelatedInformation{{
+					Path:    path,
+					Line:    int(step.ExampleRow.Location.Line),
+					Column:  int(step.ExampleRow.Location.Column),
+					Message: "for the values of this example",
+				}}
+			}
+			diagnostics = append(diagnostics, diag)
 		}
 	}
 
@@ -734,35 +847,49 @@ func (index *Index) GetFeature(path string) *messages.Feature {
 	return featureFile.Feature
 }
 
+type Step struct {
+	*messages.Step
+
+	// The Keyword after resolving conjunctions.
+	Keyword messages.StepKeywordType `json:"keyword"`
+
+	// If the step is from a scenario outline, the example row used for interpolation
+	Example    *messages.Examples `json:"example,omitempty"`
+	ExampleRow *messages.TableRow `json:"exampleRow,omitempty"`
+	// Interpolated text with example values applied, otherwise the original step text.
+	Text string `json:"text"`
+}
+
 // Steps returns an iterator over all steps in the feature file.
 // It yields pairs of step kind (Given/When/Then) and the step itself,
 // handling And/But conjunction steps by inheriting the previous step's kind.
-func (f FeatureFile) Steps() iter.Seq2[string, *messages.Step] {
-	return func(yield func(string, *messages.Step) bool) {
+func (f FeatureFile) Steps() iter.Seq2[string, *Step] {
+	return func(yield func(string, *Step) bool) {
 		for _, child := range f.Children {
 			if child.Background != nil {
-				if !yieldSteps(child.Background.Steps, yield) {
+				if !yieldSteps(yield, child.Background.Steps) {
 					return
 				}
 			}
 
 			if child.Rule != nil {
 				for _, ruleChild := range child.Rule.Children {
-					if ruleChild.Background != nil {
-						if !yieldSteps(ruleChild.Background.Steps, yield) {
+					if bg := ruleChild.Background; bg != nil {
+						if !yieldSteps(yield, bg.Steps) {
 							return
 						}
 					}
-					if ruleChild.Scenario != nil {
-						if !yieldSteps(ruleChild.Scenario.Steps, yield) {
+
+					if sc := ruleChild.Scenario; sc != nil {
+						if !interpolateWithExamples(yield, sc.Examples, sc.Steps) {
 							return
 						}
 					}
 				}
 			}
 
-			if child.Scenario != nil {
-				if !yieldSteps(child.Scenario.Steps, yield) {
+			if sc := child.Scenario; sc != nil {
+				if !interpolateWithExamples(yield, sc.Examples, sc.Steps) {
 					return
 				}
 			}
@@ -770,16 +897,69 @@ func (f FeatureFile) Steps() iter.Seq2[string, *messages.Step] {
 	}
 }
 
-func yieldSteps(steps []*messages.Step, yield func(string, *messages.Step) bool) bool {
+func yieldSteps(
+	yield func(string, *Step) bool,
+	steps []*messages.Step,
+	transforms ...func(*Step),
+) bool {
 	lastKind := messages.StepKeywordType_UNKNOWN
 	for _, step := range steps {
 		lastKind = conjugateKind(lastKind, step)
-		if !yield(mapStepKeywordType(lastKind), step) {
+		s := Step{
+			Step:    step,
+			Keyword: lastKind,
+			Text:    step.Text,
+		}
+		// Apply transforms (e.g., placeholder interpolation)
+		for _, transform := range transforms {
+			transform(&s)
+		}
+		if !yield(mapStepKeywordType(lastKind), &s) {
 			return false
 		}
 	}
 
 	return true
+}
+
+func interpolateWithExamples(
+	yield func(string, *Step) bool,
+	examples []*messages.Examples,
+	steps []*messages.Step,
+) bool {
+	if len(examples) == 0 {
+		return yieldSteps(yield, steps)
+	}
+
+	for _, example := range examples {
+		for _, row := range example.TableBody {
+			replacer := buildReplacer(example, row)
+			if !yieldSteps(yield, steps, replacer) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func buildReplacer(
+	example *messages.Examples,
+	row *messages.TableRow,
+) func(*Step) {
+	oldnew := make([]string, 0, 2*len(example.TableHeader.Cells))
+	for i, cell := range example.TableHeader.Cells {
+		old := fmt.Sprintf("<%s>", cell.Value)
+		new := row.Cells[i].Value
+		oldnew = append(oldnew, old, new)
+	}
+	replacer := strings.NewReplacer(oldnew...)
+
+	return func(step *Step) {
+		step.Text = replacer.Replace(step.Text)
+		step.Example = example
+		step.ExampleRow = row
+	}
 }
 
 func conjugateKind(
@@ -894,7 +1074,17 @@ func (index *Index) FindStepReferences(goPath string, line int, column int) []Lo
 
 	var locs []Location
 
-	slog.Debug("finding references", "component", "index", "path", goPath, "line", line, "column", column)
+	slog.Debug(
+		"finding references",
+		"component",
+		"index",
+		"path",
+		goPath,
+		"line",
+		line,
+		"column",
+		column,
+	)
 
 	for stepFunc, stepDef := range goFile.AllSteps() {
 		// Only proceed if cursor is on pattern comment or function name
@@ -947,7 +1137,7 @@ func cursorInFunctionName(goFile *GoFile, stepFunc godogen.StepFunc, line int, c
 	return funcNameLine == line && column >= funcNamePos.Column && column < funcNameEnd.Column
 }
 
-func stepMatchesDefinition(kind string, step *messages.Step, stepDef godogen.Step) bool {
+func stepMatchesDefinition(kind string, step *Step, stepDef godogen.Step) bool {
 	if stepDef.Regexp == nil {
 		return false
 	}
@@ -1114,9 +1304,12 @@ type stepRefLocation struct {
 }
 
 // formatUndefinedStep formats hover content for an undefined step.
-func formatUndefinedStep(step *messages.Step) string {
-	return fmt.Sprintf("**No step definition found**\n\nNo matching step definition for:\n```gherkin\n%s%s\n```",
-		step.Keyword, step.Text)
+func formatUndefinedStep(step *Step) string {
+	return fmt.Sprintf(
+		"**No step definition found**\n\nNo matching step definition for:\n```gherkin\n%s%s\n```",
+		step.Step.Keyword,
+		step.Step.Text,
+	)
 }
 
 // formatSingleStepDef formats hover content for a single step definition.

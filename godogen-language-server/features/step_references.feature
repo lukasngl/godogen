@@ -330,6 +330,34 @@ Feature: Finding step references
         | function body           | 4    | 5      | 0     |
         | closing brace           | 5    | 1      | 0     |
 
+  Rule: Scenario Outline placeholder steps are found
+
+    Scenario: Find references from pattern used in Scenario Outline
+      Given steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+        """
+      And example.feature is added to the workspace:
+        """
+        Feature: Example
+          Scenario Outline: Shopping
+            Given I have <count> cukes
+
+            Examples:
+              | count |
+              | 5     |
+              | 10    |
+        """
+      When I request step references for steps.go line 2
+      Then I get 2 results
+      And the results are:
+        | path            | line | column |
+        | example.feature | 3    | 5      |
+        | example.feature | 3    | 5      |
+
   Rule: Workspace file preference
     Workspace files override disk files for queries
 

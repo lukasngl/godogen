@@ -148,6 +148,90 @@ Feature: Undefined Steps
       Then I get 1 diagnostic
       And diagnostic 0 message is "No step definition found for: Given I have 5 cukes"
 
+  Rule: Scenario Outline placeholder steps are checked
+
+    Scenario: Placeholder step matches regex with capture group
+      Given test.feature is added to the workspace:
+        """
+        Feature: Shopping
+          Scenario Outline: Buy fruits
+            Given I have <count> cukes
+
+            Examples:
+              | count |
+              | 5     |
+              | 10    |
+        """
+      And steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+        """
+      When I request diagnostics for test.feature
+      Then I get 0 diagnostics
+
+    Scenario: Undefined placeholder step is reported
+      Given test.feature is added to the workspace:
+        """
+        Feature: Test
+          Scenario Outline: Shopping
+            Given I have <count> cukes
+            When I eat them
+
+            Examples:
+              | count |
+              | 5     |
+        """
+      And steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+        """
+      When I request diagnostics for test.feature
+      Then I get 1 diagnostic
+      And diagnostic 0 message is "No step definition found for: When I eat them"
+      And diagnostic 0 is on line 4
+
+    Scenario: Undefined step includes related info for each example row
+      Given test.feature is added to the workspace:
+        """
+        Feature: Shopping
+          Scenario Outline: Buy fruits
+            Given I have <count> cukes
+            When I eat them
+
+            Examples:
+              | count |
+              | 5     |
+              | 10    |
+              | 15    |
+        """
+      And steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+        """
+      When I request diagnostics for test.feature
+      Then I get 3 diagnostics
+      And diagnostic 0 message is "No step definition found for: When I eat them"
+      And diagnostic 0 is on line 4
+      And diagnostic 0 has 1 related info
+      And diagnostic 0 related info 0 is on line 8
+      And diagnostic 1 message is "No step definition found for: When I eat them"
+      And diagnostic 1 is on line 4
+      And diagnostic 1 has 1 related info
+      And diagnostic 1 related info 0 is on line 9
+      And diagnostic 2 message is "No step definition found for: When I eat them"
+      And diagnostic 2 is on line 4
+      And diagnostic 2 has 1 related info
+      And diagnostic 2 related info 0 is on line 10
+
   Rule: Workspace file preference
 
     Scenario: Workspace step definitions override disk

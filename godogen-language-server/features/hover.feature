@@ -298,3 +298,68 @@ Feature: Hover Information
         **Kind:** Given
         **Used in:** 0 places (unused)
         """
+
+  Rule: Scenario Outline placeholder steps support hover
+
+    Scenario: Hover on placeholder step shows matching definition
+      Given test.feature is added to the workspace:
+        """
+        Feature: Test
+          Scenario Outline: Shopping
+            Given I have <count> cukes
+
+            Examples:
+              | count |
+              | 5     |
+        """
+      And steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+        """
+      When I hover over line 3 column 15 in test.feature
+      Then I get hover content:
+        """
+        **Step Definition**
+
+        ```go
+        func IHaveCukes(count int)
+        ```
+
+        **File:** steps.go:4
+        **Pattern:** `^I have (\d+) cukes$`
+        """
+
+    Scenario: Hover on Go pattern shows Scenario Outline usage
+      Given test.feature is added to the workspace:
+        """
+        Feature: Test
+          Scenario Outline: Shopping
+            Given I have <count> cukes
+
+            Examples:
+              | count |
+              | 5     |
+              | 10    |
+        """
+      And steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+        """
+      When I hover over line 3 column 25 in steps.go
+      Then I get hover content:
+        """
+        **Step Definition**
+
+        **Pattern:** `^I have (\d+) cukes$`
+        **Kind:** Given
+        **Used in:** 2 places
+
+        - test.feature:3
+        - test.feature:3
+        """

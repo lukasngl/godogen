@@ -331,9 +331,10 @@ func (srv *Server) publishDiagnostics(ctx *glsp.Context, path string) {
 					Character: protocol.UInteger(diag.EndColumn - 1),
 				},
 			},
-			Severity: box(severity),
-			Source:   box("godogen"),
-			Message:  diag.Message,
+			Severity:           box(severity),
+			Source:             box("godogen"),
+			Message:            diag.Message,
+			RelatedInformation: convertRelatedInfo(diag.RelatedInformation),
 		})
 	}
 
@@ -714,6 +715,32 @@ func convertDocumentSymbol(sym index.DocumentSymbol) protocol.DocumentSymbol {
 
 func box[T any](v T) *T {
 	return &v
+}
+
+func convertRelatedInfo(rels []index.DiagnosticRelatedInformation) []protocol.DiagnosticRelatedInformation {
+	if len(rels) == 0 {
+		return nil
+	}
+	result := make([]protocol.DiagnosticRelatedInformation, 0, len(rels))
+	for _, rel := range rels {
+		result = append(result, protocol.DiagnosticRelatedInformation{
+			Location: protocol.Location{
+				URI: protocol.DocumentUri("file://" + rel.Path),
+				Range: protocol.Range{
+					Start: protocol.Position{
+						Line:      protocol.UInteger(rel.Line - 1),
+						Character: protocol.UInteger(rel.Column - 1),
+					},
+					End: protocol.Position{
+						Line:      protocol.UInteger(rel.Line - 1),
+						Character: protocol.UInteger(rel.Column - 1),
+					},
+				},
+			},
+			Message: rel.Message,
+		})
+	}
+	return result
 }
 
 // loadConfig loads configuration with the following precedence:
