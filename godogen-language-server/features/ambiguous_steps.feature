@@ -193,3 +193,31 @@ Feature: Ambiguous Step Matches
       Then I get 1 diagnostic
       And diagnostic 0 message is "No step definition found for: Given I have 5 cukes"
       And diagnostic 0 message does not contain "Ambiguous"
+
+  Rule: Scenario Outline placeholder steps are checked for ambiguity
+
+    Scenario: Ambiguous placeholder step is reported
+      Given test.feature is added to the workspace:
+        """
+        Feature: Test
+          Scenario Outline: Shopping
+            Given I have <count> cukes
+
+            Examples:
+              | count |
+              | 5     |
+        """
+      And steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+
+        //godogen:given ^I have (\d+) \w+$
+        func IHaveSomething(count int) {}
+        """
+      When I request diagnostics for test.feature
+      Then I get 1 diagnostic
+      And diagnostic 0 message contains "Ambiguous step"
+      And diagnostic 0 is on line 3

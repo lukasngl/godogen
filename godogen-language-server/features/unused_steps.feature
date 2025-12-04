@@ -128,3 +128,26 @@ Feature: Unused Step Definitions
       Then I get 1 diagnostic
       And diagnostic 0 message contains "regex pattern does not compile"
       And diagnostic 0 does not contain "not used"
+
+  Rule: Scenario Outline placeholder steps count as usage
+
+    Scenario: Step used only in Scenario Outline is not marked unused
+      Given test.feature is added to the workspace:
+        """
+        Feature: Test
+          Scenario Outline: Shopping
+            Given I have <count> cukes
+
+            Examples:
+              | count |
+              | 5     |
+        """
+      And steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+        """
+      When I request diagnostics for steps.go
+      Then I get 0 diagnostics

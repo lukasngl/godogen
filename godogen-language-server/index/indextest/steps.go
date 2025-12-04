@@ -380,6 +380,79 @@ func (tc *TestContext) CheckDiagnosticLine(indexStr string, lineStr string) erro
 
 	return nil
 }
+
+//godogen:then ^diagnostic (\d+) has (\d+) related info$
+func (tc *TestContext) CheckDiagnosticRelatedInfoCount(indexStr string, countStr string) error {
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return fmt.Errorf("invalid index: %s", indexStr)
+	}
+
+	diagnostics := tc.GetDiagnosticsResult()
+	if index >= len(diagnostics) {
+		return fmt.Errorf(
+			"diagnostic index %d out of range (have %d diagnostics)",
+			index,
+			len(diagnostics),
+		)
+	}
+
+	expectedCount, err := strconv.Atoi(countStr)
+	if err != nil {
+		return fmt.Errorf("invalid count: %s", countStr)
+	}
+
+	actualCount := len(diagnostics[index].RelatedInformation)
+	if actualCount != expectedCount {
+		return fmt.Errorf("expected %d related info, got %d", expectedCount, actualCount)
+	}
+
+	return nil
+}
+
+//godogen:then ^diagnostic (\d+) related info (\d+) is on line (\d+)$
+func (tc *TestContext) CheckDiagnosticRelatedInfoLine(diagIndexStr string, relIndexStr string, lineStr string) error {
+	diagIndex, err := strconv.Atoi(diagIndexStr)
+	if err != nil {
+		return fmt.Errorf("invalid diagnostic index: %s", diagIndexStr)
+	}
+
+	diagnostics := tc.GetDiagnosticsResult()
+	if diagIndex >= len(diagnostics) {
+		return fmt.Errorf(
+			"diagnostic index %d out of range (have %d diagnostics)",
+			diagIndex,
+			len(diagnostics),
+		)
+	}
+
+	relIndex, err := strconv.Atoi(relIndexStr)
+	if err != nil {
+		return fmt.Errorf("invalid related info index: %s", relIndexStr)
+	}
+
+	relatedInfo := diagnostics[diagIndex].RelatedInformation
+	if relIndex >= len(relatedInfo) {
+		return fmt.Errorf(
+			"related info index %d out of range (have %d related info)",
+			relIndex,
+			len(relatedInfo),
+		)
+	}
+
+	expectedLine, err := strconv.Atoi(lineStr)
+	if err != nil {
+		return fmt.Errorf("invalid line number: %s", lineStr)
+	}
+
+	actualLine := relatedInfo[relIndex].Line
+	if actualLine != expectedLine {
+		return fmt.Errorf("expected related info on line %d, got %d", expectedLine, actualLine)
+	}
+
+	return nil
+}
+
 //godogen:when ^I request document symbols for (.+) with hierarchy$
 func (tc *TestContext) RequestDocumentSymbolsWithHierarchy(path string) error {
 	tc.GetDocumentSymbols(path, true)
