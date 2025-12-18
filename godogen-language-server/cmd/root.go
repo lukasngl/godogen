@@ -13,6 +13,13 @@ var (
 	date    string
 )
 
+// Global flags for CLI commands.
+var (
+	rootDir    string
+	configFile string
+	outputFmt  string
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "godogen-language-server",
 	Short: "Language server for Godogen BDD framework",
@@ -25,6 +32,12 @@ Provides features like:
   - Diagnostics for step validation errors
   - Auto-completion for Gherkin keywords
   - Code actions for suggested fixes`,
+}
+
+func init() {
+	rootCmd.PersistentFlags().StringVar(&rootDir, "root", ".", "Workspace root directory")
+	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "Config file path (default: .godogen-language-server.json in root)")
+	rootCmd.PersistentFlags().StringVarP(&outputFmt, "format", "f", "text", "Output format: text or json")
 }
 
 func SetVersion(v, c, d string) {
