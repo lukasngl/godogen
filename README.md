@@ -162,7 +162,9 @@ godogen includes a Language Server Protocol (LSP) implementation that provides I
 - Go to Definition (feature step → pattern comment)
 - Go to Implementation (feature step → function)
 - Find References (pattern/function → feature steps)
-- Diagnostics (validation errors)
+- Diagnostics (undefined, ambiguous, unused, duplicate steps)
+- Hover (step definition details and usage)
+- Document Symbols (scenarios, step definitions)
 - Code Actions (quick fixes)
 - Completion (Gherkin keywords)
 
@@ -170,6 +172,27 @@ godogen includes a Language Server Protocol (LSP) implementation that provides I
 
 ```bash
 go install github.com/lukasngl/godogen/godogen-language-server@latest
+```
+
+**CLI Commands:**
+
+The language server also provides CLI commands for batch analysis and CI/CD:
+
+```bash
+# Run diagnostics on workspace
+godogen-language-server diagnose
+
+# List all step definitions
+godogen-language-server list-steps
+
+# Find step definition for a feature step
+godogen-language-server find-definition features/login.feature:10
+
+# Find references to a step definition
+godogen-language-server find-references steps/auth.go:15:1
+
+# JSON output for CI/CD
+godogen-language-server diagnose --format json --severity error
 ```
 
 See [godogen-language-server](./godogen-language-server) for full documentation and configuration options.
