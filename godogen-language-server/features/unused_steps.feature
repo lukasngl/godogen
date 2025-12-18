@@ -12,21 +12,17 @@ Feature: Unused Step Definitions
           Scenario: Simple test
             Given I have 5 cukes
         """
-      And steps.go is added to the workspace:
-        """
+      Then steps.go has the following diagnostics:
+        """go
         package steps
 
         //godogen:given ^I have (\d+) cukes$
         func IHaveCukes(count int) {}
 
         //godogen:given ^I have (\d+) melons$
+        ^ HINT: Step definition is not used
         func IHaveMelons(count int) {}
         """
-      When I request diagnostics for steps.go
-      Then I get 1 diagnostic
-      And diagnostic 0 message is "Step definition is not used in any feature file"
-      And diagnostic 0 severity is "Hint"
-      And diagnostic 0 is on line 6
 
     Scenario: All step definitions are used
       Given test.feature is added to the workspace:
@@ -36,8 +32,8 @@ Feature: Unused Step Definitions
             Given I have 5 cukes
             And I have 3 melons
         """
-      And steps.go is added to the workspace:
-        """
+      Then steps.go has the following diagnostics:
+        """go
         package steps
 
         //godogen:given ^I have (\d+) cukes$
@@ -46,8 +42,6 @@ Feature: Unused Step Definitions
         //godogen:given ^I have (\d+) melons$
         func IHaveMelons(count int) {}
         """
-      When I request diagnostics for steps.go
-      Then I get 0 diagnostics
 
     Scenario: Step kind must match
       Given test.feature is added to the workspace:
@@ -56,16 +50,14 @@ Feature: Unused Step Definitions
           Scenario: Simple test
             When I have 5 cukes
         """
-      And steps.go is added to the workspace:
-        """
+      Then steps.go has the following diagnostics:
+        """go
         package steps
 
         //godogen:given ^I have (\d+) cukes$
+        ^ HINT: Step definition is not used
         func IHaveCukes(count int) {}
         """
-      When I request diagnostics for steps.go
-      Then I get 1 diagnostic
-      And diagnostic 0 message is "Step definition is not used in any feature file"
 
     Scenario: Generic step matches any kind
       Given test.feature is added to the workspace:
@@ -75,8 +67,8 @@ Feature: Unused Step Definitions
             When I have 5 cukes
             Then I have 3 melons
         """
-      And steps.go is added to the workspace:
-        """
+      Then steps.go has the following diagnostics:
+        """go
         package steps
 
         //godogen:step ^I have (\d+) cukes$
@@ -85,8 +77,6 @@ Feature: Unused Step Definitions
         //godogen:step ^I have (\d+) melons$
         func IHaveMelons(count int) {}
         """
-      When I request diagnostics for steps.go
-      Then I get 0 diagnostics
 
     Scenario: Multiple patterns on same function
       Given test.feature is added to the workspace:
@@ -95,18 +85,15 @@ Feature: Unused Step Definitions
           Scenario: Simple test
             Given I have 5 cukes
         """
-      And steps.go is added to the workspace:
-        """
+      Then steps.go has the following diagnostics:
+        """go
         package steps
 
         //godogen:given ^I have (\d+) cukes$
         //godogen:given ^I have (\d+) melons$
+        ^ HINT: Step definition is not used
         func IHaveFruits(count int) {}
         """
-      When I request diagnostics for steps.go
-      Then I get 1 diagnostic
-      And diagnostic 0 message is "Step definition is not used in any feature file"
-      And diagnostic 0 is on line 4
 
   Rule: Invalid patterns are not checked for usage
 
@@ -117,17 +104,14 @@ Feature: Unused Step Definitions
           Scenario: Simple test
             Given I have 5 cukes
         """
-      And steps.go is added to the workspace:
-        """
+      Then steps.go has the following diagnostics:
+        """go
         package steps
 
         //godogen:given ^I have (\d+ cukes$
+        ^ ERROR: regex pattern does not compile
         func IHaveCukes(count int) {}
         """
-      When I request diagnostics for steps.go
-      Then I get 1 diagnostic
-      And diagnostic 0 message contains "regex pattern does not compile"
-      And diagnostic 0 does not contain "not used"
 
   Rule: Scenario Outline placeholder steps count as usage
 
@@ -142,12 +126,10 @@ Feature: Unused Step Definitions
               | count |
               | 5     |
         """
-      And steps.go is added to the workspace:
-        """
+      Then steps.go has the following diagnostics:
+        """go
         package steps
 
         //godogen:given ^I have (\d+) cukes$
         func IHaveCukes(count int) {}
         """
-      When I request diagnostics for steps.go
-      Then I get 0 diagnostics
