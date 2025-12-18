@@ -410,8 +410,9 @@ func (tc *TestContext) CheckDiagnosticRelatedInfoCount(indexStr string, countStr
 	return nil
 }
 
-//godogen:then ^diagnostic (\d+) related info (\d+) is on line (\d+)$
-func (tc *TestContext) CheckDiagnosticRelatedInfoLine(diagIndexStr string, relIndexStr string, lineStr string) error {
+//godogen:then ^diagnostic (\d+) related info (\d+) is on line ()(\d+)$
+//godogen:then ^diagnostic (\d+) related info (\d+) is in file (.+) on line (\d+)$
+func (tc *TestContext) CheckDiagnosticRelatedInfoLine(diagIndexStr, relIndexStr, file, lineStr string) error {
 	diagIndex, err := strconv.Atoi(diagIndexStr)
 	if err != nil {
 		return fmt.Errorf("invalid diagnostic index: %s", diagIndexStr)
@@ -440,14 +441,27 @@ func (tc *TestContext) CheckDiagnosticRelatedInfoLine(diagIndexStr string, relIn
 		)
 	}
 
+	rel := relatedInfo[relIndex]
+
+	// Check file: if empty, must match diagnostics path; otherwise must end with specified file
+	if file == "" {
+		if rel.Path != tc.GetDiagnosticsPath() {
+			return fmt.Errorf("expected related info in same file as diagnostic (%s), got %s",
+				tc.GetDiagnosticsPath(), rel.Path)
+		}
+	} else {
+		if !strings.HasSuffix(rel.Path, file) {
+			return fmt.Errorf("expected related info in file %s, got %s", file, rel.Path)
+		}
+	}
+
 	expectedLine, err := strconv.Atoi(lineStr)
 	if err != nil {
 		return fmt.Errorf("invalid line number: %s", lineStr)
 	}
 
-	actualLine := relatedInfo[relIndex].Line
-	if actualLine != expectedLine {
-		return fmt.Errorf("expected related info on line %d, got %d", expectedLine, actualLine)
+	if rel.Line != expectedLine {
+		return fmt.Errorf("expected related info on line %d, got %d", expectedLine, rel.Line)
 	}
 
 	return nil

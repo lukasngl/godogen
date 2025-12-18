@@ -13,6 +13,7 @@ type TestContext struct {
 	Index           *index.Index // Exported for direct access in step definitions
 	results         []index.Location
 	diagnostics     []index.Diagnostic
+	diagnosticsPath string
 	hoverInfo       *index.HoverInfo
 	documentSymbols []index.DocumentSymbol
 }
@@ -68,12 +69,18 @@ func (tc *TestContext) ResultCount() int {
 
 // GetDiagnostics queries for diagnostics at the given path.
 func (tc *TestContext) GetDiagnostics(path string) {
+	tc.diagnosticsPath = path
 	// Check file extension to determine which diagnostics method to call
 	if strings.HasSuffix(path, ".feature") {
 		tc.diagnostics = tc.index.GetFeatureDiagnostics(path)
 	} else {
 		tc.diagnostics = tc.index.GetDiagnostics(path)
 	}
+}
+
+// GetDiagnosticsPath returns the path for which diagnostics were requested.
+func (tc *TestContext) GetDiagnosticsPath() string {
+	return tc.diagnosticsPath
 }
 
 // GetDiagnosticsResult returns the last diagnostics query results.
