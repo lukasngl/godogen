@@ -4,10 +4,12 @@ package indextest
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/cucumber/godog"
+	"github.com/lukasngl/godogen/godogen-language-server/index"
 )
 
 //godogen:given ^(.+) is added to the workspace:$
@@ -176,75 +178,6 @@ func (tc *TestContext) CheckResults(table *godog.Table) error {
 	return nil
 }
 
-//godogen:step ^I request diagnostics for (.+)$
-func (tc *TestContext) RequestDiagnostics(path string) error {
-	tc.GetDiagnostics(path)
-	return nil
-}
-
-//godogen:then ^I get (\d+) diagnostics?$
-func (tc *TestContext) CheckDiagnosticCount(countStr string) error {
-	expectedCount, err := strconv.Atoi(countStr)
-	if err != nil {
-		return fmt.Errorf("invalid count: %s", countStr)
-	}
-
-	actualCount := tc.DiagnosticCount()
-	if actualCount != expectedCount {
-		return fmt.Errorf("expected %d diagnostics, got %d", expectedCount, actualCount)
-	}
-
-	return nil
-}
-
-//godogen:then ^diagnostic (\d+) message is "([^"]+)"$
-func (tc *TestContext) CheckDiagnosticMessage(indexStr string, expectedMessage string) error {
-	index, err := strconv.Atoi(indexStr)
-	if err != nil {
-		return fmt.Errorf("invalid index: %s", indexStr)
-	}
-
-	diagnostics := tc.GetDiagnosticsResult()
-	if index >= len(diagnostics) {
-		return fmt.Errorf(
-			"diagnostic index %d out of range (have %d diagnostics)",
-			index,
-			len(diagnostics),
-		)
-	}
-
-	actualMessage := diagnostics[index].Message
-	if actualMessage != expectedMessage {
-		return fmt.Errorf("expected message %q, got %q", expectedMessage, actualMessage)
-	}
-
-	return nil
-}
-
-//godogen:then ^diagnostic (\d+) message contains "([^"]+)"$
-func (tc *TestContext) CheckDiagnosticMessageContains(indexStr string, substring string) error {
-	index, err := strconv.Atoi(indexStr)
-	if err != nil {
-		return fmt.Errorf("invalid index: %s", indexStr)
-	}
-
-	diagnostics := tc.GetDiagnosticsResult()
-	if index >= len(diagnostics) {
-		return fmt.Errorf(
-			"diagnostic index %d out of range (have %d diagnostics)",
-			index,
-			len(diagnostics),
-		)
-	}
-
-	actualMessage := diagnostics[index].Message
-	if !strings.Contains(actualMessage, substring) {
-		return fmt.Errorf("expected message to contain %q, got %q", substring, actualMessage)
-	}
-
-	return nil
-}
-
 //godogen:when ^I hover over line (\d+) column (\d+) in (.+)$
 func (tc *TestContext) HoverOverPosition(lineStr string, columnStr string, path string) error {
 	line, err := strconv.Atoi(lineStr)
@@ -290,180 +223,6 @@ func (tc *TestContext) CheckNoHoverContent() error {
 	if hoverInfo != nil {
 		return fmt.Errorf("expected no hover content, got: %s", hoverInfo.Content)
 	}
-	return nil
-}
-
-//godogen:then ^diagnostic (\d+) message does not contain "([^"]+)"$
-func (tc *TestContext) CheckDiagnosticMessageDoesNotContainVerbose(
-	indexStr string,
-	substring string,
-) error {
-	return tc.CheckDiagnosticMessageDoesNotContain(indexStr, substring)
-}
-
-//godogen:then ^diagnostic (\d+) does not contain "([^"]+)"$
-func (tc *TestContext) CheckDiagnosticMessageDoesNotContain(
-	indexStr string,
-	substring string,
-) error {
-	index, err := strconv.Atoi(indexStr)
-	if err != nil {
-		return fmt.Errorf("invalid index: %s", indexStr)
-	}
-
-	diagnostics := tc.GetDiagnosticsResult()
-	if index >= len(diagnostics) {
-		return fmt.Errorf(
-			"diagnostic index %d out of range (have %d diagnostics)",
-			index,
-			len(diagnostics),
-		)
-	}
-
-	actualMessage := diagnostics[index].Message
-	if strings.Contains(actualMessage, substring) {
-		return fmt.Errorf("expected message not to contain %q, got %q", substring, actualMessage)
-	}
-
-	return nil
-}
-
-//godogen:then ^diagnostic (\d+) severity is "([^"]+)"$
-func (tc *TestContext) CheckDiagnosticSeverity(indexStr string, severity string) error {
-	index, err := strconv.Atoi(indexStr)
-	if err != nil {
-		return fmt.Errorf("invalid index: %s", indexStr)
-	}
-
-	diagnostics := tc.GetDiagnosticsResult()
-	if index >= len(diagnostics) {
-		return fmt.Errorf(
-			"diagnostic index %d out of range (have %d diagnostics)",
-			index,
-			len(diagnostics),
-		)
-	}
-
-	actualSeverity := tc.Index.SeverityToString(diagnostics[index].Severity)
-	if actualSeverity != severity {
-		return fmt.Errorf("expected severity %q, got %q", severity, actualSeverity)
-	}
-
-	return nil
-}
-
-//godogen:then ^diagnostic (\d+) is on line (\d+)$
-func (tc *TestContext) CheckDiagnosticLine(indexStr string, lineStr string) error {
-	index, err := strconv.Atoi(indexStr)
-	if err != nil {
-		return fmt.Errorf("invalid index: %s", indexStr)
-	}
-
-	diagnostics := tc.GetDiagnosticsResult()
-	if index >= len(diagnostics) {
-		return fmt.Errorf(
-			"diagnostic index %d out of range (have %d diagnostics)",
-			index,
-			len(diagnostics),
-		)
-	}
-
-	expectedLine, err := strconv.Atoi(lineStr)
-	if err != nil {
-		return fmt.Errorf("invalid line number: %s", lineStr)
-	}
-
-	actualLine := diagnostics[index].StartLine
-	if actualLine != expectedLine {
-		return fmt.Errorf("expected line %d, got %d", expectedLine, actualLine)
-	}
-
-	return nil
-}
-
-//godogen:then ^diagnostic (\d+) has (\d+) related info$
-func (tc *TestContext) CheckDiagnosticRelatedInfoCount(indexStr string, countStr string) error {
-	index, err := strconv.Atoi(indexStr)
-	if err != nil {
-		return fmt.Errorf("invalid index: %s", indexStr)
-	}
-
-	diagnostics := tc.GetDiagnosticsResult()
-	if index >= len(diagnostics) {
-		return fmt.Errorf(
-			"diagnostic index %d out of range (have %d diagnostics)",
-			index,
-			len(diagnostics),
-		)
-	}
-
-	expectedCount, err := strconv.Atoi(countStr)
-	if err != nil {
-		return fmt.Errorf("invalid count: %s", countStr)
-	}
-
-	actualCount := len(diagnostics[index].RelatedInformation)
-	if actualCount != expectedCount {
-		return fmt.Errorf("expected %d related info, got %d", expectedCount, actualCount)
-	}
-
-	return nil
-}
-
-//godogen:then ^diagnostic (\d+) related info (\d+) is on line ()(\d+)$
-//godogen:then ^diagnostic (\d+) related info (\d+) is in file (.+) on line (\d+)$
-func (tc *TestContext) CheckDiagnosticRelatedInfoLine(diagIndexStr, relIndexStr, file, lineStr string) error {
-	diagIndex, err := strconv.Atoi(diagIndexStr)
-	if err != nil {
-		return fmt.Errorf("invalid diagnostic index: %s", diagIndexStr)
-	}
-
-	diagnostics := tc.GetDiagnosticsResult()
-	if diagIndex >= len(diagnostics) {
-		return fmt.Errorf(
-			"diagnostic index %d out of range (have %d diagnostics)",
-			diagIndex,
-			len(diagnostics),
-		)
-	}
-
-	relIndex, err := strconv.Atoi(relIndexStr)
-	if err != nil {
-		return fmt.Errorf("invalid related info index: %s", relIndexStr)
-	}
-
-	relatedInfo := diagnostics[diagIndex].RelatedInformation
-	if relIndex >= len(relatedInfo) {
-		return fmt.Errorf(
-			"related info index %d out of range (have %d related info)",
-			relIndex,
-			len(relatedInfo),
-		)
-	}
-
-	rel := relatedInfo[relIndex]
-
-	// Check file: if empty, must match diagnostics path; otherwise must end with specified file
-	if file == "" {
-		if rel.Path != tc.GetDiagnosticsPath() {
-			return fmt.Errorf("expected related info in same file as diagnostic (%s), got %s",
-				tc.GetDiagnosticsPath(), rel.Path)
-		}
-	} else {
-		if !strings.HasSuffix(rel.Path, file) {
-			return fmt.Errorf("expected related info in file %s, got %s", file, rel.Path)
-		}
-	}
-
-	expectedLine, err := strconv.Atoi(lineStr)
-	if err != nil {
-		return fmt.Errorf("invalid line number: %s", lineStr)
-	}
-
-	if rel.Line != expectedLine {
-		return fmt.Errorf("expected related info on line %d, got %d", expectedLine, rel.Line)
-	}
-
 	return nil
 }
 
@@ -655,6 +414,141 @@ func (tc *TestContext) CheckSymbolChildKind(
 	actualKind := children[childIndex].Kind
 	if actualKind != expectedKind {
 		return fmt.Errorf("expected kind %q, got %q", expectedKind, actualKind)
+	}
+
+	return nil
+}
+
+// annotationRegex matches inline diagnostic annotations like "    ^ ERROR: message".
+var annotationRegex = regexp.MustCompile(`^\s*\^+\s+(ERROR|WARNING|INFO|HINT):\s*(.+)$`)
+
+type expectedDiagnostic struct {
+	Line     int
+	Severity string
+	Message  string
+}
+
+func parseInlineAnnotations(content string) (string, []expectedDiagnostic) {
+	lines := strings.Split(content, "\n")
+	var cleanLines []string
+	var diags []expectedDiagnostic
+
+	for _, line := range lines {
+		if match := annotationRegex.FindStringSubmatch(line); match != nil {
+			// Annotation line - extract diagnostic info
+			diags = append(diags, expectedDiagnostic{
+				Line:     len(cleanLines), // Points to the previous clean line (1-indexed)
+				Severity: match[1],
+				Message:  match[2],
+			})
+		} else {
+			cleanLines = append(cleanLines, line)
+		}
+	}
+
+	return strings.Join(cleanLines, "\n"), diags
+}
+
+func severityToInt(severity string) int {
+	switch severity {
+	case "ERROR":
+		return 1
+	case "WARNING":
+		return 2
+	case "INFO":
+		return 3
+	case "HINT":
+		return 4
+	default:
+		return 0
+	}
+}
+
+func severityFromInt(severity int) string {
+	switch severity {
+	case 1:
+		return "ERROR"
+	case 2:
+		return "WARNING"
+	case 3:
+		return "INFO"
+	case 4:
+		return "HINT"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+//godogen:then ^(.+) has the following diagnostics:$
+func (tc *TestContext) CheckInlineDiagnostics(path string, content *godog.DocString) error {
+	// Parse annotations and clean code
+	cleanCode, expectedDiags := parseInlineAnnotations(content.Content)
+
+	// Add file to workspace
+	if err := tc.addFileToWorkspace(path, cleanCode); err != nil {
+		return fmt.Errorf("failed to add file: %w", err)
+	}
+
+	// Request diagnostics
+	tc.GetDiagnostics(path)
+	actualDiags := tc.GetDiagnosticsResult()
+
+	// Check count matches
+	if len(actualDiags) != len(expectedDiags) {
+		var details []string
+		for _, d := range actualDiags {
+			details = append(details, fmt.Sprintf("  line %d: %s: %s",
+				d.StartLine, severityFromInt(int(d.Severity)), d.Message))
+		}
+		return fmt.Errorf("expected %d diagnostics, got %d:\n%s",
+			len(expectedDiags), len(actualDiags), strings.Join(details, "\n"))
+	}
+
+	// Group actual diagnostics by line
+	actualByLine := make(map[int][]index.Diagnostic)
+	for _, d := range actualDiags {
+		actualByLine[d.StartLine] = append(actualByLine[d.StartLine], d)
+	}
+
+	// For each expected diagnostic, find a matching actual on the same line
+	usedActual := make(map[*index.Diagnostic]bool)
+	for _, expected := range expectedDiags {
+		actualsOnLine := actualByLine[expected.Line]
+		if len(actualsOnLine) == 0 {
+			return fmt.Errorf("expected diagnostic on line %d with message %q, but no diagnostics on that line",
+				expected.Line, expected.Message)
+		}
+
+		found := false
+		for i := range actualsOnLine {
+			actual := &actualsOnLine[i]
+			if usedActual[actual] {
+				continue
+			}
+
+			expectedSev := severityToInt(expected.Severity)
+			if int(actual.Severity) != expectedSev {
+				continue
+			}
+
+			if !strings.Contains(actual.Message, expected.Message) {
+				continue
+			}
+
+			found = true
+			usedActual[actual] = true
+			break
+		}
+
+		if !found {
+			var actualMsgs []string
+			for _, a := range actualsOnLine {
+				actualMsgs = append(actualMsgs, fmt.Sprintf("%s: %s",
+					severityFromInt(int(a.Severity)), a.Message))
+			}
+			return fmt.Errorf("on line %d: expected %s containing %q, got: %s",
+				expected.Line, expected.Severity, expected.Message, strings.Join(actualMsgs, "; "))
+		}
 	}
 
 	return nil
