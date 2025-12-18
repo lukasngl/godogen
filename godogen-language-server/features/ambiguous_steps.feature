@@ -24,9 +24,12 @@ Feature: Ambiguous Step Matches
         """
       When I request diagnostics for test.feature
       Then I get 1 diagnostic
-      And diagnostic 0 message is "Ambiguous step: matches 2 definitions (steps.go:3, steps.go:6)"
+      And diagnostic 0 message is "Ambiguous step: matches 2 definitions"
       And diagnostic 0 severity is "Warning"
       And diagnostic 0 is on line 3
+      And diagnostic 0 has 2 related info
+      And diagnostic 0 related info 0 is in file steps.go on line 3
+      And diagnostic 0 related info 1 is in file steps.go on line 6
 
     Scenario: Step matches three definitions
       Given test.feature is added to the workspace:
@@ -58,7 +61,11 @@ Feature: Ambiguous Step Matches
         """
       When I request diagnostics for test.feature
       Then I get 1 diagnostic
-      And diagnostic 0 message is "Ambiguous step: matches 3 definitions (steps1.go:3, steps2.go:3, steps3.go:3)"
+      And diagnostic 0 message is "Ambiguous step: matches 3 definitions"
+      And diagnostic 0 has 3 related info
+      And diagnostic 0 related info 0 is in file steps1.go on line 3
+      And diagnostic 0 related info 1 is in file steps2.go on line 3
+      And diagnostic 0 related info 2 is in file steps3.go on line 3
 
     Scenario: Step matches exactly one definition
       Given test.feature is added to the workspace:
@@ -99,7 +106,10 @@ Feature: Ambiguous Step Matches
         """
       When I request diagnostics for test.feature
       Then I get 1 diagnostic
-      And diagnostic 0 message is "Ambiguous step: matches 2 definitions (steps.go:3, steps.go:6)"
+      And diagnostic 0 message is "Ambiguous step: matches 2 definitions"
+      And diagnostic 0 has 2 related info
+      And diagnostic 0 related info 0 is in file steps.go on line 3
+      And diagnostic 0 related info 1 is in file steps.go on line 6
 
     Scenario: Different step kinds do not create ambiguity
       Given test.feature is added to the workspace:
@@ -144,10 +154,16 @@ Feature: Ambiguous Step Matches
         """
       When I request diagnostics for test.feature
       Then I get 2 diagnostics
-      And diagnostic 0 message is "Ambiguous step: matches 2 definitions (steps.go:3, steps.go:9)"
+      And diagnostic 0 message is "Ambiguous step: matches 2 definitions"
       And diagnostic 0 is on line 3
-      And diagnostic 1 message is "Ambiguous step: matches 2 definitions (steps.go:6, steps.go:9)"
+      And diagnostic 0 has 2 related info
+      And diagnostic 0 related info 0 is in file steps.go on line 3
+      And diagnostic 0 related info 1 is in file steps.go on line 9
+      And diagnostic 1 message is "Ambiguous step: matches 2 definitions"
       And diagnostic 1 is on line 4
+      And diagnostic 1 has 2 related info
+      And diagnostic 1 related info 0 is in file steps.go on line 6
+      And diagnostic 1 related info 1 is in file steps.go on line 9
 
   Rule: Ambiguity across files is detected
 
@@ -174,7 +190,10 @@ Feature: Ambiguous Step Matches
         """
       When I request diagnostics for test.feature
       Then I get 1 diagnostic
-      And diagnostic 0 message is "Ambiguous step: matches 2 definitions (steps1.go:3, steps2.go:3)"
+      And diagnostic 0 message is "Ambiguous step: matches 2 definitions"
+      And diagnostic 0 has 2 related info
+      And diagnostic 0 related info 0 is in file steps1.go on line 3
+      And diagnostic 0 related info 1 is in file steps2.go on line 3
 
   Rule: No ambiguity warning when step is undefined
 
@@ -219,5 +238,9 @@ Feature: Ambiguous Step Matches
         """
       When I request diagnostics for test.feature
       Then I get 1 diagnostic
-      And diagnostic 0 message contains "Ambiguous step"
+      And diagnostic 0 message is "Ambiguous step: matches 2 definitions"
       And diagnostic 0 is on line 3
+      And diagnostic 0 has 3 related info
+      And diagnostic 0 related info 0 is in file steps.go on line 3
+      And diagnostic 0 related info 1 is in file steps.go on line 6
+      And diagnostic 0 related info 2 is on line 7

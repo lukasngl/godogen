@@ -727,7 +727,13 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 		}
 
 		// Find all matching step definitions
-		var matchingLocs []Location
+		type matchInfo struct {
+			Path    string
+			Line    int
+			Column  int
+			Pattern string
+		}
+		var matches []matchInfo
 
 		for goPath, goFileVersions := range index.GoFiles {
 			goFile := goFileVersions.get()
@@ -738,17 +744,18 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 			for _, stepDef := range goFile.AllSteps() {
 				if stepMatchesDefinition(kind, step, stepDef) {
 					pos := goFile.Position(stepDef.Node.Pos())
-					matchingLocs = append(matchingLocs, Location{
-						Path:   goPath,
-						Line:   pos.Line,
-						Column: pos.Column,
+					matches = append(matches, matchInfo{
+						Path:    goPath,
+						Line:    pos.Line,
+						Column:  pos.Column,
+						Pattern: stepDef.Pattern,
 					})
 				}
 			}
 		}
 
 		// Check for undefined steps
-		if len(matchingLocs) == 0 {
+		if len(matches) == 0 {
 			// Use the original keyword from the file (e.g., "But") not the inherited kind (e.g., "Given")
 			keyword := strings.TrimSpace(step.Step.Keyword)
 			diag := Diagnostic{
@@ -773,41 +780,42 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 		}
 
 		// Check for ambiguous steps (multiple matches)
-		if len(matchingLocs) > 1 {
-			// Sort locations by path then line for consistent output
-			slices.SortFunc(matchingLocs, func(a, b Location) int {
+		if len(matches) > 1 {
+			// Sort by path then line for consistent output
+			slices.SortFunc(matches, func(a, b matchInfo) int {
 				if a.Path != b.Path {
 					return strings.Compare(a.Path, b.Path)
 				}
 				return a.Line - b.Line
 			})
 
-			// Format locations as "file:line"
-			var locStrings []string
-			for _, loc := range matchingLocs {
-				locStrings = append(locStrings, fmt.Sprintf("%s:%d", loc.Path, loc.Line))
-			}
-
-			message := fmt.Sprintf("Ambiguous step: matches %d definitions (%s)",
-				len(matchingLocs),
-				strings.Join(locStrings, ", "))
-
 			diag := Diagnostic{
 				StartLine:   int(step.Location.Line),
 				StartColumn: int(step.Location.Column),
 				EndLine:     int(step.Location.Line),
 				EndColumn:   int(step.Location.Column) + len(step.Step.Keyword) + len(step.Step.Text),
-				Message:     message,
+				Message:     fmt.Sprintf("Ambiguous step: matches %d definitions", len(matches)),
 				Severity:    DiagnosticSeverityWarning,
 			}
-			// Add related info for Scenario Outline steps
+
+			// Add related info for each matching definition
+			for _, m := range matches {
+				diag.RelatedInformation = append(diag.RelatedInformation, DiagnosticRelatedInformation{
+					Path:    m.Path,
+					Line:    m.Line,
+					Column:  m.Column,
+					Message: fmt.Sprintf("defined here: %s", m.Pattern),
+				})
+			}
+
+			// Add related info for Scenario Outline example row
 			if step.ExampleRow != nil {
-				diag.RelatedInformation = []DiagnosticRelatedInformation{{
+				diag.RelatedInformation = append(diag.RelatedInformation, DiagnosticRelatedInformation{
 					Path:    path,
 					Line:    int(step.ExampleRow.Location.Line),
 					Column:  int(step.ExampleRow.Location.Column),
 					Message: "for the values of this example",
-				}}
+				})
 			}
 			diagnostics = append(diagnostics, diag)
 		}
