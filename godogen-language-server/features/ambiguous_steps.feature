@@ -6,13 +6,7 @@ Feature: Ambiguous Step Matches
   Rule: Steps matching multiple definitions are reported
 
     Scenario: Step matches two definitions
-      Given test.feature is added to the workspace:
-        """
-        Feature: Test
-          Scenario: Shopping
-            Given I have 5 cukes
-        """
-      And steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -22,23 +16,16 @@ Feature: Ambiguous Step Matches
         //godogen:given ^I have (\d+) \w+$
         func IHaveSomething(count int) {}
         """
-      When I request diagnostics for test.feature
-      Then I get 1 diagnostic
-      And diagnostic 0 message is "Ambiguous step: matches 2 definitions"
-      And diagnostic 0 severity is "Warning"
-      And diagnostic 0 is on line 3
-      And diagnostic 0 has 2 related info
-      And diagnostic 0 related info 0 is in file steps.go on line 3
-      And diagnostic 0 related info 1 is in file steps.go on line 6
-
-    Scenario: Step matches three definitions
-      Given test.feature is added to the workspace:
+      Then test.feature has the following diagnostics:
         """
         Feature: Test
           Scenario: Shopping
             Given I have 5 cukes
+            ^ WARNING: Ambiguous step: matches 2 definitions
         """
-      And steps1.go is added to the workspace:
+
+    Scenario: Step matches three definitions
+      Given steps1.go is added to the workspace:
         """
         package steps
 
@@ -59,22 +46,16 @@ Feature: Ambiguous Step Matches
         //godogen:step ^I have .*$
         func IHaveAnything() {}
         """
-      When I request diagnostics for test.feature
-      Then I get 1 diagnostic
-      And diagnostic 0 message is "Ambiguous step: matches 3 definitions"
-      And diagnostic 0 has 3 related info
-      And diagnostic 0 related info 0 is in file steps1.go on line 3
-      And diagnostic 0 related info 1 is in file steps2.go on line 3
-      And diagnostic 0 related info 2 is in file steps3.go on line 3
-
-    Scenario: Step matches exactly one definition
-      Given test.feature is added to the workspace:
+      Then test.feature has the following diagnostics:
         """
         Feature: Test
           Scenario: Shopping
             Given I have 5 cukes
+            ^ WARNING: Ambiguous step: matches 3 definitions
         """
-      And steps.go is added to the workspace:
+
+    Scenario: Step matches exactly one definition
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -84,17 +65,15 @@ Feature: Ambiguous Step Matches
         //godogen:given ^I have (\d+) melons$
         func IHaveMelons(count int) {}
         """
-      When I request diagnostics for test.feature
-      Then I get 0 diagnostics
-
-    Scenario: Generic step creates ambiguity
-      Given test.feature is added to the workspace:
+      Then test.feature has the following diagnostics:
         """
         Feature: Test
           Scenario: Shopping
-            When I have 5 cukes
+            Given I have 5 cukes
         """
-      And steps.go is added to the workspace:
+
+    Scenario: Generic step creates ambiguity
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -104,21 +83,16 @@ Feature: Ambiguous Step Matches
         //godogen:step ^I have (\d+) cukes$
         func GenericCukes(count int) {}
         """
-      When I request diagnostics for test.feature
-      Then I get 1 diagnostic
-      And diagnostic 0 message is "Ambiguous step: matches 2 definitions"
-      And diagnostic 0 has 2 related info
-      And diagnostic 0 related info 0 is in file steps.go on line 3
-      And diagnostic 0 related info 1 is in file steps.go on line 6
-
-    Scenario: Different step kinds do not create ambiguity
-      Given test.feature is added to the workspace:
+      Then test.feature has the following diagnostics:
         """
         Feature: Test
           Scenario: Shopping
-            Given I have 5 cukes
+            When I have 5 cukes
+            ^ WARNING: Ambiguous step: matches 2 definitions
         """
-      And steps.go is added to the workspace:
+
+    Scenario: Different step kinds do not create ambiguity
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -128,18 +102,15 @@ Feature: Ambiguous Step Matches
         //godogen:when ^I have (\d+) cukes$
         func WhenIHaveCukes(count int) {}
         """
-      When I request diagnostics for test.feature
-      Then I get 0 diagnostics
-
-    Scenario: Conjunction steps are checked for ambiguity
-      Given test.feature is added to the workspace:
+      Then test.feature has the following diagnostics:
         """
         Feature: Test
           Scenario: Shopping
             Given I have 5 cukes
-            And I have 5 melons
         """
-      And steps.go is added to the workspace:
+
+    Scenario: Conjunction steps are checked for ambiguity
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -152,29 +123,20 @@ Feature: Ambiguous Step Matches
         //godogen:given ^I have (\d+) \w+$
         func IHaveSomething(count int) {}
         """
-      When I request diagnostics for test.feature
-      Then I get 2 diagnostics
-      And diagnostic 0 message is "Ambiguous step: matches 2 definitions"
-      And diagnostic 0 is on line 3
-      And diagnostic 0 has 2 related info
-      And diagnostic 0 related info 0 is in file steps.go on line 3
-      And diagnostic 0 related info 1 is in file steps.go on line 9
-      And diagnostic 1 message is "Ambiguous step: matches 2 definitions"
-      And diagnostic 1 is on line 4
-      And diagnostic 1 has 2 related info
-      And diagnostic 1 related info 0 is in file steps.go on line 6
-      And diagnostic 1 related info 1 is in file steps.go on line 9
-
-  Rule: Ambiguity across files is detected
-
-    Scenario: Definitions in different files create ambiguity
-      Given test.feature is added to the workspace:
+      Then test.feature has the following diagnostics:
         """
         Feature: Test
           Scenario: Shopping
             Given I have 5 cukes
+            ^ WARNING: Ambiguous step: matches 2 definitions
+            And I have 5 melons
+            ^ WARNING: Ambiguous step: matches 2 definitions
         """
-      And steps1.go is added to the workspace:
+
+  Rule: Ambiguity across files is detected
+
+    Scenario: Definitions in different files create ambiguity
+      Given steps1.go is added to the workspace:
         """
         package steps
 
@@ -188,45 +150,33 @@ Feature: Ambiguous Step Matches
         //godogen:given ^I have (\d+) \w+$
         func IHaveSomething(count int) {}
         """
-      When I request diagnostics for test.feature
-      Then I get 1 diagnostic
-      And diagnostic 0 message is "Ambiguous step: matches 2 definitions"
-      And diagnostic 0 has 2 related info
-      And diagnostic 0 related info 0 is in file steps1.go on line 3
-      And diagnostic 0 related info 1 is in file steps2.go on line 3
-
-  Rule: No ambiguity warning when step is undefined
-
-    Scenario: Step with no matches has no ambiguity warning
-      Given test.feature is added to the workspace:
+      Then test.feature has the following diagnostics:
         """
         Feature: Test
           Scenario: Shopping
             Given I have 5 cukes
+            ^ WARNING: Ambiguous step: matches 2 definitions
         """
-      And steps.go is added to the workspace:
+
+  Rule: No ambiguity warning when step is undefined
+
+    Scenario: Step with no matches has no ambiguity warning
+      Given steps.go is added to the workspace:
         """
         package steps
         """
-      When I request diagnostics for test.feature
-      Then I get 1 diagnostic
-      And diagnostic 0 message is "No step definition found for: Given I have 5 cukes"
-      And diagnostic 0 message does not contain "Ambiguous"
+      Then test.feature has the following diagnostics:
+        """
+        Feature: Test
+          Scenario: Shopping
+            Given I have 5 cukes
+            ^ ERROR: No step definition found for: Given I have 5 cukes
+        """
 
   Rule: Scenario Outline placeholder steps are checked for ambiguity
 
     Scenario: Ambiguous placeholder step is reported
-      Given test.feature is added to the workspace:
-        """
-        Feature: Test
-          Scenario Outline: Shopping
-            Given I have <count> cukes
-
-            Examples:
-              | count |
-              | 5     |
-        """
-      And steps.go is added to the workspace:
+      Given steps.go is added to the workspace:
         """
         package steps
 
@@ -236,11 +186,14 @@ Feature: Ambiguous Step Matches
         //godogen:given ^I have (\d+) \w+$
         func IHaveSomething(count int) {}
         """
-      When I request diagnostics for test.feature
-      Then I get 1 diagnostic
-      And diagnostic 0 message is "Ambiguous step: matches 2 definitions"
-      And diagnostic 0 is on line 3
-      And diagnostic 0 has 3 related info
-      And diagnostic 0 related info 0 is in file steps.go on line 3
-      And diagnostic 0 related info 1 is in file steps.go on line 6
-      And diagnostic 0 related info 2 is on line 7
+      Then test.feature has the following diagnostics:
+        """
+        Feature: Test
+          Scenario Outline: Shopping
+            Given I have <count> cukes
+            ^ WARNING: Ambiguous step: matches 2 definitions
+
+            Examples:
+              | count |
+              | 5     |
+        """
