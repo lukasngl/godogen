@@ -19,9 +19,10 @@ Feature: Undefined Steps
           Scenario: Shopping
             Given I have 5 cukes
             When I eat 2 cukes
-            ^ ERROR: No step definition found
+            ^ ERROR: No step definition found for: When I eat 2 cukes
             Then I have 3 cukes
-            ^ ERROR: No step definition found
+            ^ ERROR: No step definition found for: Then I have 3 cukes
+            ^ HINT: A matching pattern exists but is defined as 'Given': ^I have (\d+) cukes$
         """
 
     Scenario: All steps have matching definitions
@@ -73,7 +74,8 @@ Feature: Undefined Steps
         Feature: Test
           Scenario: Shopping
             When I have 5 cukes
-            ^ ERROR: No step definition found
+            ^ ERROR: No step definition found for: When I have 5 cukes
+            ^ HINT: A matching pattern exists but is defined as 'Given': ^I have (\d+) cukes$
         """
 
     Scenario: Conjunction steps inherit kind

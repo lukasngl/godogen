@@ -355,12 +355,61 @@ func (srv *Server) textDocumentCodeAction(
 		return nil, nil
 	}
 
+	var actions []protocol.CodeAction
+
+	// Handle feature file code actions
+	if strings.HasSuffix(path, ".feature") {
+		diags := srv.index.GetFeatureDiagnostics(path)
+		for _, diag := range diags {
+			if diag.Fix == nil {
+				continue
+			}
+
+			actions = append(actions, protocol.CodeAction{
+				Title: diag.Fix.Title,
+				Kind:  box(protocol.CodeActionKindQuickFix),
+				Edit: &protocol.WorkspaceEdit{
+					Changes: map[protocol.DocumentUri][]protocol.TextEdit{
+						params.TextDocument.URI: {{
+							Range: protocol.Range{
+								Start: protocol.Position{
+									Line:      protocol.UInteger(diag.StartLine - 1),
+									Character: protocol.UInteger(diag.StartColumn - 1),
+								},
+								End: protocol.Position{
+									Line:      protocol.UInteger(diag.EndLine - 1),
+									Character: protocol.UInteger(diag.EndColumn - 1),
+								},
+							},
+							NewText: diag.Fix.NewText,
+						}},
+					},
+				},
+				Diagnostics: []protocol.Diagnostic{{
+					Range: protocol.Range{
+						Start: protocol.Position{
+							Line:      protocol.UInteger(diag.StartLine - 1),
+							Character: protocol.UInteger(diag.StartColumn - 1),
+						},
+						End: protocol.Position{
+							Line:      protocol.UInteger(diag.EndLine - 1),
+							Character: protocol.UInteger(diag.EndColumn - 1),
+						},
+					},
+					Severity: box(convertSeverity(diag.Severity)),
+					Source:   box("godogen"),
+					Message:  diag.Message,
+				}},
+			})
+		}
+		return actions, nil
+	}
+
+	// Handle Go file code actions
 	goFile := srv.index.GetGoFile(path)
 	if goFile == nil {
 		return nil, nil
 	}
-
-	var actions []protocol.CodeAction
 
 	for validationErr := range goFile.ValidationErrors() {
 		for _, fix := range validationErr.SuggestedFixes {
@@ -715,6 +764,19 @@ func convertDocumentSymbol(sym index.DocumentSymbol) protocol.DocumentSymbol {
 
 func box[T any](v T) *T {
 	return &v
+}
+
+func convertSeverity(s index.DiagnosticSeverity) protocol.DiagnosticSeverity {
+	switch s {
+	case index.DiagnosticSeverityError:
+		return protocol.DiagnosticSeverityError
+	case index.DiagnosticSeverityWarning:
+		return protocol.DiagnosticSeverityWarning
+	case index.DiagnosticSeverityHint:
+		return protocol.DiagnosticSeverityHint
+	default:
+		return protocol.DiagnosticSeverityInformation
+	}
 }
 
 func convertRelatedInfo(rels []index.DiagnosticRelatedInformation) []protocol.DiagnosticRelatedInformation {

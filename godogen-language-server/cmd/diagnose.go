@@ -34,11 +34,19 @@ func init() {
 }
 
 type diagnosticOutput struct {
-	File     string `json:"file"`
-	Line     int    `json:"line"`
-	Column   int    `json:"column"`
-	Severity string `json:"severity"`
-	Message  string `json:"message"`
+	File        string              `json:"file"`
+	Line        int                 `json:"line"`
+	Column      int                 `json:"column"`
+	Severity    string              `json:"severity"`
+	Message     string              `json:"message"`
+	RelatedInfo []relatedInfoOutput `json:"relatedInfo,omitempty"`
+}
+
+type relatedInfoOutput struct {
+	File    string `json:"file"`
+	Line    int    `json:"line"`
+	Column  int    `json:"column"`
+	Message string `json:"message"`
 }
 
 type diagnoseResult struct {
@@ -66,11 +74,12 @@ func runDiagnose(_ *cobra.Command, _ []string) error {
 		diags := ws.Index.GetDiagnostics(path)
 		for _, diag := range diags {
 			d := diagnosticOutput{
-				File:     path,
-				Line:     diag.StartLine,
-				Column:   diag.StartColumn,
-				Severity: severityString(diag.Severity),
-				Message:  diag.Message,
+				File:        path,
+				Line:        diag.StartLine,
+				Column:      diag.StartColumn,
+				Severity:    severityString(diag.Severity),
+				Message:     diag.Message,
+				RelatedInfo: toRelatedInfoOutput(diag.RelatedInformation),
 			}
 			if matchesSeverityFilter(d.Severity) {
 				diagnostics = append(diagnostics, d)
@@ -83,11 +92,12 @@ func runDiagnose(_ *cobra.Command, _ []string) error {
 		diags := ws.Index.GetFeatureDiagnostics(path)
 		for _, diag := range diags {
 			d := diagnosticOutput{
-				File:     path,
-				Line:     diag.StartLine,
-				Column:   diag.StartColumn,
-				Severity: severityString(diag.Severity),
-				Message:  diag.Message,
+				File:        path,
+				Line:        diag.StartLine,
+				Column:      diag.StartColumn,
+				Severity:    severityString(diag.Severity),
+				Message:     diag.Message,
+				RelatedInfo: toRelatedInfoOutput(diag.RelatedInformation),
 			}
 			if matchesSeverityFilter(d.Severity) {
 				diagnostics = append(diagnostics, d)
@@ -149,6 +159,22 @@ func matchesSeverityFilter(severity string) bool {
 	return severity == severityFilter
 }
 
+func toRelatedInfoOutput(info []index.DiagnosticRelatedInformation) []relatedInfoOutput {
+	if len(info) == 0 {
+		return nil
+	}
+	result := make([]relatedInfoOutput, len(info))
+	for i, ri := range info {
+		result[i] = relatedInfoOutput{
+			File:    ri.Path,
+			Line:    ri.Line,
+			Column:  ri.Column,
+			Message: ri.Message,
+		}
+	}
+	return result
+}
+
 func outputJSON(v any) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -158,6 +184,9 @@ func outputJSON(v any) error {
 func outputDiagnoseText(result diagnoseResult) error {
 	for _, d := range result.Diagnostics {
 		fmt.Printf("%s:%d:%d: %s: %s\n", d.File, d.Line, d.Column, d.Severity, d.Message)
+		for _, rel := range d.RelatedInfo {
+			fmt.Printf("  -> %s:%d:%d: %s\n", rel.File, rel.Line, rel.Column, rel.Message)
+		}
 	}
 
 	if result.Summary.Total > 0 {
