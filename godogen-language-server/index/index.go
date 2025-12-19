@@ -13,6 +13,7 @@ import (
 	"iter"
 	"log/slog"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -429,6 +430,12 @@ type DiagnosticRelatedInformation struct {
 	Message string
 }
 
+// DiagnosticFix represents a suggested fix for a diagnostic.
+type DiagnosticFix struct {
+	Title   string // e.g., "Change 'And' to 'When'"
+	NewText string // The replacement text
+}
+
 // Diagnostic represents a diagnostic message with position information.
 type Diagnostic struct {
 	StartLine          int
@@ -438,6 +445,7 @@ type Diagnostic struct {
 	Message            string
 	Severity           DiagnosticSeverity
 	RelatedInformation []DiagnosticRelatedInformation
+	Fix                *DiagnosticFix // Optional fix for the diagnostic
 }
 
 // GetDiagnostics returns validation errors for a Go file at the given path.
@@ -766,14 +774,80 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 				Message:     fmt.Sprintf("No step definition found for: %s %s", keyword, step.Step.Text),
 				Severity:    DiagnosticSeverityError,
 			}
+
+			// Look for similar step definitions that might be what the user meant
+			if suggestion := index.findSimilarStepDefinition(kind, step); suggestion != nil {
+				// Add related info pointing to the suggested definition
+				diag.RelatedInformation = append(diag.RelatedInformation, DiagnosticRelatedInformation{
+					Path:    suggestion.path,
+					Line:    suggestion.line,
+					Column:  suggestion.column,
+					Message: fmt.Sprintf("similarly named %s step defined here", suggestion.kind),
+				})
+
+				// Create a hint diagnostic for the suggestion (rust-analyzer style)
+				hintDiag := Diagnostic{
+					StartLine:   int(step.Location.Line),
+					StartColumn: int(step.Location.Column),
+					EndLine:     int(step.Location.Line),
+					EndColumn:   int(step.Location.Column) + len(keyword),
+					Severity:    DiagnosticSeverityHint,
+				}
+
+				if suggestion.exactMatch {
+					// Pattern matches but wrong kind - offer a fix to change keyword
+					if isConjunction(keyword) {
+						hintDiag.Message = fmt.Sprintf(
+							"A matching '%s' step exists: %s",
+							suggestion.kind, suggestion.pattern,
+						)
+					} else {
+						hintDiag.Message = fmt.Sprintf(
+							"A matching pattern exists but is defined as '%s': %s",
+							suggestion.kind, suggestion.pattern,
+						)
+					}
+					// Add fix to change the keyword
+					hintDiag.Fix = &DiagnosticFix{
+						Title:   fmt.Sprintf("Change '%s' to '%s'", keyword, suggestion.kind),
+						NewText: suggestion.kind + " ",
+					}
+				} else {
+					// Fuzzy match - similar pattern
+					hintDiag.Message = fmt.Sprintf(
+						"A step with a similar name exists: %s %s",
+						suggestion.kind, suggestion.pattern,
+					)
+					// Only offer fix if the pattern is entirely literal (no capture groups)
+					if suggestion.regexp != nil {
+						if literal, complete := suggestion.regexp.LiteralPrefix(); complete {
+							hintDiag.Fix = &DiagnosticFix{
+								Title:   fmt.Sprintf("Change to '%s %s'", keyword, literal),
+								NewText: keyword + " " + literal,
+							}
+						}
+					}
+				}
+
+				// Add related info pointing back to original diagnostic
+				hintDiag.RelatedInformation = append(hintDiag.RelatedInformation, DiagnosticRelatedInformation{
+					Path:    path,
+					Line:    int(step.Location.Line),
+					Column:  int(step.Location.Column),
+					Message: "original diagnostic",
+				})
+
+				diagnostics = append(diagnostics, hintDiag)
+			}
+
 			// Add related info for Scenario Outline steps
 			if step.ExampleRow != nil {
-				diag.RelatedInformation = []DiagnosticRelatedInformation{{
+				diag.RelatedInformation = append(diag.RelatedInformation, DiagnosticRelatedInformation{
 					Path:    path,
 					Line:    int(step.ExampleRow.Location.Line),
 					Column:  int(step.ExampleRow.Location.Column),
 					Message: "for the values of this example",
-				}}
+				})
 			}
 			diagnostics = append(diagnostics, diag)
 			continue
@@ -1159,6 +1233,160 @@ func stepMatchesDefinition(kind string, step *Step, stepDef godogen.Step) bool {
 	}
 
 	return true
+}
+
+// isConjunction returns true if the keyword is And or But (or their localized equivalents).
+func isConjunction(keyword string) bool {
+	k := strings.ToLower(keyword)
+	return k == "and" || k == "but" || k == "*"
+}
+
+// stepSuggestion holds info about a step definition that might match what the user meant.
+type stepSuggestion struct {
+	kind       string
+	path       string
+	line       int
+	column     int
+	pattern    string
+	regexp     *regexp.Regexp // compiled regex for checking literal prefix
+	exactMatch bool           // true if the regex matches exactly, false if fuzzy match
+	score      float64        // similarity score for fuzzy matches
+}
+
+// findSimilarStepDefinition looks for step definitions that might be what the user meant.
+// It first looks for exact regex matches with different kinds, then falls back to fuzzy matching.
+// This method assumes the index read lock is already held by the caller.
+func (index *Index) findSimilarStepDefinition(inheritedKind string, step *Step) *stepSuggestion {
+	var bestFuzzy *stepSuggestion
+
+	for goPath, goFileVersions := range index.GoFiles {
+		goFile := goFileVersions.get()
+		if goFile == nil {
+			continue
+		}
+
+		for _, stepDef := range goFile.AllSteps() {
+			if stepDef.Regexp == nil {
+				continue
+			}
+
+			// Skip generic "Step" definitions (they should have matched already)
+			if stepDef.Kind == "Step" {
+				continue
+			}
+
+			pos := goFile.Position(stepDef.Node.Pos())
+			sameKind := stepDef.Kind == inheritedKind
+
+			// Check for exact regex match (only useful if different kind)
+			if !sameKind && stepDef.Regexp.MatchString(step.Text) {
+				return &stepSuggestion{
+					kind:       stepDef.Kind,
+					path:       goPath,
+					line:       pos.Line,
+					column:     pos.Column,
+					pattern:    stepDef.Pattern,
+					regexp:     stepDef.Regexp,
+					exactMatch: true,
+					score:      1.0,
+				}
+			}
+
+			// Compute fuzzy similarity (for both same and different kinds)
+			score := patternSimilarity(stepDef.Pattern, step.Text)
+			if score >= 0.75 && (bestFuzzy == nil || score > bestFuzzy.score) {
+				bestFuzzy = &stepSuggestion{
+					kind:       stepDef.Kind,
+					path:       goPath,
+					line:       pos.Line,
+					column:     pos.Column,
+					pattern:    stepDef.Pattern,
+					regexp:     stepDef.Regexp,
+					exactMatch: false,
+					score:      score,
+				}
+			}
+		}
+	}
+
+	return bestFuzzy
+}
+
+// patternSimilarity computes similarity between a regex pattern and step text.
+// Returns a score between 0 and 1, where 1 is a perfect match.
+func patternSimilarity(pattern, text string) float64 {
+	normalized := normalizePattern(pattern)
+	return stringSimilarity(normalized, text)
+}
+
+// normalizePattern converts a regex pattern to a normalized form for comparison.
+// Replaces capture groups with representative placeholders.
+func normalizePattern(pattern string) string {
+	// Remove anchors
+	s := strings.TrimPrefix(pattern, "^")
+	s = strings.TrimSuffix(s, "$")
+
+	// Replace common capture groups with placeholders
+	s = strings.ReplaceAll(s, `(\d+)`, "123")
+	s = strings.ReplaceAll(s, `([^"]*)`, "text")
+	s = strings.ReplaceAll(s, `(.*)`, "text")
+	s = strings.ReplaceAll(s, `(.+)`, "text")
+	s = strings.ReplaceAll(s, `(\w+)`, "word")
+
+	// Remove remaining regex escapes
+	s = strings.ReplaceAll(s, `\.`, ".")
+	s = strings.ReplaceAll(s, `\(`, "(")
+	s = strings.ReplaceAll(s, `\)`, ")")
+	s = strings.ReplaceAll(s, `\[`, "[")
+	s = strings.ReplaceAll(s, `\]`, "]")
+
+	return s
+}
+
+// stringSimilarity computes similarity using longest common subsequence ratio.
+func stringSimilarity(a, b string) float64 {
+	if a == b {
+		return 1.0
+	}
+
+	a = strings.ToLower(a)
+	b = strings.ToLower(b)
+
+	if a == b {
+		return 1.0
+	}
+
+	lcs := longestCommonSubsequence(a, b)
+	maxLen := max(len(a), len(b))
+	if maxLen == 0 {
+		return 0.0
+	}
+
+	return float64(lcs) / float64(maxLen)
+}
+
+// longestCommonSubsequence returns the length of the LCS.
+func longestCommonSubsequence(a, b string) int {
+	m, n := len(a), len(b)
+	if m == 0 || n == 0 {
+		return 0
+	}
+
+	prev := make([]int, n+1)
+	curr := make([]int, n+1)
+
+	for i := 1; i <= m; i++ {
+		for j := 1; j <= n; j++ {
+			if a[i-1] == b[j-1] {
+				curr[j] = prev[j-1] + 1
+			} else {
+				curr[j] = max(prev[j], curr[j-1])
+			}
+		}
+		prev, curr = curr, prev
+	}
+
+	return prev[n]
 }
 
 // HoverInfo represents hover information to display.
