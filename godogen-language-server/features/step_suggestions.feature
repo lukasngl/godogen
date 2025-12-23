@@ -85,6 +85,31 @@ Feature: Step Definition Suggestions
             ^ HINT: A step with a similar name exists: When ^I click the submit button$
         """
 
+    Scenario: Multiple similar definitions all suggested as fixes
+      Given steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:when ^I click the submit button$
+        func ClickSubmit() {}
+
+        //godogen:when ^I click the submot button$
+        func ClickSubmot() {}
+
+        //godogen:when ^I click the subnit button$
+        func ClickSubnit() {}
+        """
+      And test.feature is added to the workspace:
+        """
+        Feature: Test
+          Scenario: Login
+            When I click the submet button
+        """
+      When I request diagnostics for test.feature
+      Then diagnostic 1 fix title is "Change to 'When I click the submit button'"
+      And diagnostic 1 fix title is "Change to 'When I click the submot button'"
+      And diagnostic 1 fix title is "Change to 'When I click the subnit button'"
+
   Rule: No suggestion when no similar definitions exist
 
     Scenario: Completely different step has no suggestion
@@ -101,4 +126,57 @@ Feature: Step Definition Suggestions
           Scenario: Shopping
             When I buy groceries
             ^ ERROR: No step definition found for: When I buy groceries
+        """
+
+  Rule: Fixes produce correct output
+
+    Scenario: Fix for keyword change (And -> When) produces correct output
+      Given steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:given ^I am on the login page$
+        func OnLoginPage() {}
+
+        //godogen:when ^I click the submit button$
+        func ClickSubmit() {}
+        """
+      And test.feature is added to the workspace:
+        """
+        Feature: Test
+          Scenario: Login
+            Given I am on the login page
+            And I click the submit button
+        """
+      When I request diagnostics for test.feature
+      Then diagnostic 1 fix title is "Change 'And' to 'When'"
+      And diagnostic 1 fix applied to test.feature produces:
+        """
+        Feature: Test
+          Scenario: Login
+            Given I am on the login page
+            When I click the submit button
+        """
+
+    Scenario: Fix for typo produces correct output
+      Given steps.go is added to the workspace:
+        """
+        package steps
+
+        //godogen:when ^I click the submit button$
+        func ClickSubmit() {}
+        """
+      And test.feature is added to the workspace:
+        """
+        Feature: Test
+          Scenario: Login
+            When I click the submitt button
+        """
+      When I request diagnostics for test.feature
+      Then diagnostic 1 fix title is "Change to 'When I click the submit button'"
+      And diagnostic 1 fix applied to test.feature produces:
+        """
+        Feature: Test
+          Scenario: Login
+            When I click the submit button
         """

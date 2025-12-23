@@ -25,6 +25,7 @@ func InitializeSteps(sc *godog.ScenarioContext, r1 *TestContext) {
 	sc.Then(`^I get no hover content$`, r1.CheckNoHoverContent)
 	sc.When(`^I request document symbols for (.+) with hierarchy$`, r1.RequestDocumentSymbolsWithHierarchy)
 	sc.When(`^I request document symbols for ([^ ]+)$`, r1.RequestDocumentSymbols)
+	sc.When(`^I request diagnostics for (.+)$`, r1.RequestDiagnostics)
 	sc.Then(`^I get (\d+) symbols?$`, r1.CheckSymbolCount)
 	sc.Then(`^symbol (\d+) name is "([^"]+)"$`, r1.CheckSymbolName)
 	sc.Then(`^symbol (\d+) kind is "([^"]+)"$`, r1.CheckSymbolKind)
@@ -33,4 +34,6 @@ func InitializeSteps(sc *godog.ScenarioContext, r1 *TestContext) {
 	sc.Then(`^symbol (\d+) child (\d+) name is "([^"]+)"$`, r1.CheckSymbolChildName)
 	sc.Then(`^symbol (\d+) child (\d+) kind is "([^"]+)"$`, r1.CheckSymbolChildKind)
 	sc.Then(`^(.+) has the following diagnostics:$`, r1.CheckInlineDiagnostics)
+	sc.Then(`^diagnostic (\d+) fix title is "(.+)"$`, r1.CheckDiagnosticFixTitle)
+	sc.Then(`^diagnostic (\d+) fix applied to (.+) produces:$`, r1.CheckDiagnosticFixApplied)
 }

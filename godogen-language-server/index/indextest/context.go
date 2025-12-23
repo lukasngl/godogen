@@ -16,14 +16,16 @@ type TestContext struct {
 	diagnosticsPath string
 	hoverInfo       *index.HoverInfo
 	documentSymbols []index.DocumentSymbol
+	fileContents    map[string]string // Stores file content for fix application tests
 }
 
 // NewTestContext creates a new test context for a scenario.
 func NewTestContext() *TestContext {
 	idx := index.NewIndex()
 	return &TestContext{
-		index: idx,
-		Index: idx,
+		index:        idx,
+		Index:        idx,
+		fileContents: make(map[string]string),
 	}
 }
 
@@ -34,7 +36,17 @@ func (tc *TestContext) AddWorkspaceGoFile(path string, content []byte) error {
 
 // AddWorkspaceFeatureFile adds a feature file to the workspace.
 func (tc *TestContext) AddWorkspaceFeatureFile(path string, content []byte) error {
+	tc.fileContents[path] = string(content)
 	return tc.index.IndexWorkspaceFeatureFile(path, content)
+}
+
+// GetFileContent returns the stored content of a file.
+func (tc *TestContext) GetFileContent(path string) (string, error) {
+	content, ok := tc.fileContents[path]
+	if !ok {
+		return "", nil // Return empty if not found
+	}
+	return content, nil
 }
 
 // AddDiskGoFile adds a Go file from disk.
