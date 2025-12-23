@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	gherkin "github.com/cucumber/gherkin/go/v36"
 	"github.com/lukasngl/godogen/godogen-language-server/fsys"
@@ -93,6 +94,24 @@ type Server struct {
 	server  *server.Server
 	handler *protocol17.Handler
 	cancel  context.CancelFunc
+
+	// diagnosticsCache stores the last published diagnostics per file for code actions
+	diagMu           sync.RWMutex
+	diagnosticsCache map[string][]index.Diagnostic
+}
+
+// cacheDiagnostics stores diagnostics for a file path.
+func (srv *Server) cacheDiagnostics(path string, diags []index.Diagnostic) {
+	srv.diagMu.Lock()
+	defer srv.diagMu.Unlock()
+	srv.diagnosticsCache[path] = diags
+}
+
+// getCachedDiagnostics retrieves cached diagnostics for a file path.
+func (srv *Server) getCachedDiagnostics(path string) []index.Diagnostic {
+	srv.diagMu.RLock()
+	defer srv.diagMu.RUnlock()
+	return srv.diagnosticsCache[path]
 }
 
 // Config contains godogen language server configuration.
@@ -109,7 +128,8 @@ type Config struct {
 // NewServer creates a new language server instance.
 func NewServer() (*Server, error) {
 	srv := &Server{
-		index: index.NewIndex(),
+		index:            index.NewIndex(),
+		diagnosticsCache: make(map[string][]index.Diagnostic),
 	}
 
 	watcher, err := fsys.NewWatcher(srv.onDiskFileChanged, srv.onDiskFileDeleted)
@@ -230,13 +250,12 @@ func (srv *Server) textDocumentDidOpen(
 	switch params.TextDocument.LanguageID {
 	case "go":
 		_ = srv.index.IndexWorkspaceGoFile(path, []byte(params.TextDocument.Text))
-		// Push diagnostics for this Go file
-		srv.publishDiagnostics(ctx, path)
 	case "cucumber":
 		_ = srv.index.IndexWorkspaceFeatureFile(path, []byte(params.TextDocument.Text))
-		// Push diagnostics for this feature file
-		srv.publishDiagnostics(ctx, path)
 	}
+
+	// Republish diagnostics for all files to handle cross-file dependencies
+	srv.publishAllDiagnostics(ctx)
 
 	return nil
 }
@@ -256,13 +275,12 @@ func (srv *Server) textDocumentDidChange(
 	switch filepath.Ext(path) {
 	case ".go":
 		_ = srv.index.IndexWorkspaceGoFile(path, []byte(change.Text))
-		// Push diagnostics for this Go file
-		srv.publishDiagnostics(ctx, path)
 	case ".feature":
 		_ = srv.index.IndexWorkspaceFeatureFile(path, []byte(change.Text))
-		// Push diagnostics for this feature file
-		srv.publishDiagnostics(ctx, path)
 	}
+
+	// Republish diagnostics for all files to handle cross-file dependencies
+	srv.publishAllDiagnostics(ctx)
 
 	return nil
 }
@@ -289,6 +307,19 @@ func (srv *Server) textDocumentDidClose(
 	return nil
 }
 
+// publishAllDiagnostics republishes diagnostics for all tracked files.
+// This ensures cross-file dependencies are updated (e.g., feature files
+// see changes to step definitions in Go files).
+func (srv *Server) publishAllDiagnostics(ctx *glsp.Context) {
+	goPaths, featurePaths := srv.index.AllFilePaths()
+	for _, path := range goPaths {
+		srv.publishDiagnostics(ctx, path)
+	}
+	for _, path := range featurePaths {
+		srv.publishDiagnostics(ctx, path)
+	}
+}
+
 // publishDiagnostics pushes diagnostics to the client via PublishDiagnostics notification.
 func (srv *Server) publishDiagnostics(ctx *glsp.Context, path string) {
 	uri := "file://" + path
@@ -300,6 +331,9 @@ func (srv *Server) publishDiagnostics(ctx *glsp.Context, path string) {
 	} else {
 		indexDiagnostics = srv.index.GetDiagnostics(path)
 	}
+
+	// Cache the diagnostics for code actions
+	srv.cacheDiagnostics(path, indexDiagnostics)
 
 	// Initialize with empty slice (not nil) to ensure JSON marshals to [] not null
 	diagnostics := []protocol.Diagnostic{}
@@ -359,48 +393,59 @@ func (srv *Server) textDocumentCodeAction(
 
 	// Handle feature file code actions
 	if strings.HasSuffix(path, ".feature") {
-		diags := srv.index.GetFeatureDiagnostics(path)
+		// Use cached diagnostics
+		diags := srv.getCachedDiagnostics(path)
+
 		for _, diag := range diags {
-			if diag.Fix == nil {
+			if len(diag.Fixes) == 0 {
 				continue
 			}
 
-			actions = append(actions, protocol.CodeAction{
-				Title: diag.Fix.Title,
-				Kind:  box(protocol.CodeActionKindQuickFix),
-				Edit: &protocol.WorkspaceEdit{
-					Changes: map[protocol.DocumentUri][]protocol.TextEdit{
-						params.TextDocument.URI: {{
-							Range: protocol.Range{
-								Start: protocol.Position{
-									Line:      protocol.UInteger(diag.StartLine - 1),
-									Character: protocol.UInteger(diag.StartColumn - 1),
+			// Check if diagnostic intersects with requested range
+			diagLine := protocol.UInteger(diag.StartLine - 1)
+			if diagLine < params.Range.Start.Line || diagLine > params.Range.End.Line {
+				continue
+			}
+
+			// Create a code action for each fix
+			for _, fix := range diag.Fixes {
+				actions = append(actions, protocol.CodeAction{
+					Title: fix.Title,
+					Kind:  box(protocol.CodeActionKindQuickFix),
+					Edit: &protocol.WorkspaceEdit{
+						Changes: map[protocol.DocumentUri][]protocol.TextEdit{
+							params.TextDocument.URI: {{
+								Range: protocol.Range{
+									Start: protocol.Position{
+										Line:      protocol.UInteger(diag.StartLine - 1),
+										Character: protocol.UInteger(diag.StartColumn - 1),
+									},
+									End: protocol.Position{
+										Line:      protocol.UInteger(diag.EndLine - 1),
+										Character: protocol.UInteger(diag.EndColumn - 1),
+									},
 								},
-								End: protocol.Position{
-									Line:      protocol.UInteger(diag.EndLine - 1),
-									Character: protocol.UInteger(diag.EndColumn - 1),
-								},
+								NewText: fix.NewText,
+							}},
+						},
+					},
+					Diagnostics: []protocol.Diagnostic{{
+						Range: protocol.Range{
+							Start: protocol.Position{
+								Line:      protocol.UInteger(diag.StartLine - 1),
+								Character: protocol.UInteger(diag.StartColumn - 1),
 							},
-							NewText: diag.Fix.NewText,
-						}},
-					},
-				},
-				Diagnostics: []protocol.Diagnostic{{
-					Range: protocol.Range{
-						Start: protocol.Position{
-							Line:      protocol.UInteger(diag.StartLine - 1),
-							Character: protocol.UInteger(diag.StartColumn - 1),
+							End: protocol.Position{
+								Line:      protocol.UInteger(diag.EndLine - 1),
+								Character: protocol.UInteger(diag.EndColumn - 1),
+							},
 						},
-						End: protocol.Position{
-							Line:      protocol.UInteger(diag.EndLine - 1),
-							Character: protocol.UInteger(diag.EndColumn - 1),
-						},
-					},
-					Severity: box(convertSeverity(diag.Severity)),
-					Source:   box("godogen"),
-					Message:  diag.Message,
-				}},
-			})
+						Severity: box(convertSeverity(diag.Severity)),
+						Source:   box("godogen"),
+						Message:  diag.Message,
+					}},
+				})
+			}
 		}
 		return actions, nil
 	}

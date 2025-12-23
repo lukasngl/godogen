@@ -2,6 +2,7 @@
 package indextest
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -238,6 +239,12 @@ func (tc *TestContext) RequestDocumentSymbols(path string) error {
 	return nil
 }
 
+//godogen:when ^I request diagnostics for (.+)$
+func (tc *TestContext) RequestDiagnostics(path string) error {
+	tc.GetDiagnostics(path)
+	return nil
+}
+
 //godogen:then ^I get (\d+) symbols?$
 func (tc *TestContext) CheckSymbolCount(countStr string) error {
 	expectedCount, err := strconv.Atoi(countStr)
@@ -420,12 +427,21 @@ func (tc *TestContext) CheckSymbolChildKind(
 }
 
 // annotationRegex matches inline diagnostic annotations like "    ^ ERROR: message".
-var annotationRegex = regexp.MustCompile(`^\s*\^+\s+(ERROR|WARNING|INFO|HINT):\s*(.+)$`)
+var annotationRegex = regexp.MustCompile(`^\s*\^\s+(ERROR|WARNING|INFO|HINT):\s*(.+)$`)
+
+// fixAnnotationRegex matches inline fix annotations like "    ^^ FIX: title -> expected result".
+var fixAnnotationRegex = regexp.MustCompile(`^\s*\^\^\s+FIX:\s*(.+)\s*->\s*(.+)$`)
+
+type expectedFix struct {
+	Title        string
+	ExpectedLine string // The expected line content after applying the fix
+}
 
 type expectedDiagnostic struct {
 	Line     int
 	Severity string
 	Message  string
+	Fixes    []expectedFix
 }
 
 func parseInlineAnnotations(content string) (string, []expectedDiagnostic) {
@@ -434,8 +450,16 @@ func parseInlineAnnotations(content string) (string, []expectedDiagnostic) {
 	var diags []expectedDiagnostic
 
 	for _, line := range lines {
-		if match := annotationRegex.FindStringSubmatch(line); match != nil {
-			// Annotation line - extract diagnostic info
+		if match := fixAnnotationRegex.FindStringSubmatch(line); match != nil {
+			// Fix annotation - attach to the most recent diagnostic
+			if len(diags) > 0 {
+				diags[len(diags)-1].Fixes = append(diags[len(diags)-1].Fixes, expectedFix{
+					Title:        match[1],
+					ExpectedLine: match[2],
+				})
+			}
+		} else if match := annotationRegex.FindStringSubmatch(line); match != nil {
+			// Diagnostic annotation line - extract diagnostic info
 			diags = append(diags, expectedDiagnostic{
 				Line:     len(cleanLines), // Points to the previous clean line (1-indexed)
 				Severity: match[1],
@@ -510,6 +534,9 @@ func (tc *TestContext) CheckInlineDiagnostics(path string, content *godog.DocStr
 		actualByLine[d.StartLine] = append(actualByLine[d.StartLine], d)
 	}
 
+	// Get file content for fix verification
+	fileLines := strings.Split(cleanCode, "\n")
+
 	// For each expected diagnostic, find a matching actual on the same line
 	usedActual := make(map[*index.Diagnostic]bool)
 	for _, expected := range expectedDiags {
@@ -519,7 +546,7 @@ func (tc *TestContext) CheckInlineDiagnostics(path string, content *godog.DocStr
 				expected.Line, expected.Message)
 		}
 
-		found := false
+		var matchedActual *index.Diagnostic
 		for i := range actualsOnLine {
 			actual := &actualsOnLine[i]
 			if usedActual[actual] {
@@ -535,12 +562,12 @@ func (tc *TestContext) CheckInlineDiagnostics(path string, content *godog.DocStr
 				continue
 			}
 
-			found = true
+			matchedActual = actual
 			usedActual[actual] = true
 			break
 		}
 
-		if !found {
+		if matchedActual == nil {
 			var actualMsgs []string
 			for _, a := range actualsOnLine {
 				actualMsgs = append(actualMsgs, fmt.Sprintf("%s: %s",
@@ -549,7 +576,159 @@ func (tc *TestContext) CheckInlineDiagnostics(path string, content *godog.DocStr
 			return fmt.Errorf("on line %d: expected %s containing %q, got: %s",
 				expected.Line, expected.Severity, expected.Message, strings.Join(actualMsgs, "; "))
 		}
+
+		// Verify fixes if expected
+		if len(expected.Fixes) > 0 {
+			if err := verifyFixes(expected, matchedActual, fileLines); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
+}
+
+// verifyFixes checks that the actual diagnostic has the expected fixes.
+func verifyFixes(expected expectedDiagnostic, actual *index.Diagnostic, fileLines []string) error {
+	if len(actual.Fixes) < len(expected.Fixes) {
+		return fmt.Errorf("on line %d: expected %d fixes, got %d",
+			expected.Line, len(expected.Fixes), len(actual.Fixes))
+	}
+
+	lineIdx := actual.StartLine - 1
+	if lineIdx < 0 || lineIdx >= len(fileLines) {
+		return fmt.Errorf("diagnostic line %d out of range", actual.StartLine)
+	}
+	originalLine := fileLines[lineIdx]
+
+	for _, expectedFix := range expected.Fixes {
+		// Find a matching fix by title
+		var matchedFix *index.DiagnosticFix
+		for _, actualFix := range actual.Fixes {
+			if actualFix.Title == expectedFix.Title {
+				matchedFix = actualFix
+				break
+			}
+		}
+
+		if matchedFix == nil {
+			var actualTitles []string
+			for _, f := range actual.Fixes {
+				actualTitles = append(actualTitles, f.Title)
+			}
+			return fmt.Errorf("on line %d: expected fix with title %q, got: %v",
+				expected.Line, expectedFix.Title, actualTitles)
+		}
+
+		// Apply the fix and check the result
+		startCol := actual.StartColumn - 1
+		endCol := actual.EndColumn - 1
+		if startCol < 0 || endCol > len(originalLine) || startCol > endCol {
+			return fmt.Errorf("invalid column range: %d-%d for line of length %d",
+				startCol, endCol, len(originalLine))
+		}
+
+		resultLine := originalLine[:startCol] + matchedFix.NewText + originalLine[endCol:]
+		if resultLine != expectedFix.ExpectedLine {
+			return fmt.Errorf("on line %d: fix %q produced %q, expected %q",
+				expected.Line, expectedFix.Title, resultLine, expectedFix.ExpectedLine)
+		}
+	}
+
+	return nil
+}
+
+func checkFixTitle(fix *index.DiagnosticFix, expectedTitle string) error {
+	if fix.Title != expectedTitle {
+		return fmt.Errorf("expected fix title %q, got %q", expectedTitle, fix.Title)
+	}
+	return nil
+}
+
+//godogen:then ^diagnostic (\d+) fix title is "(.+)"$
+func (tc *TestContext) CheckDiagnosticFixTitle(indexStr, expectedTitle string) error {
+	diagnostics := tc.GetDiagnosticsResult()
+
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return fmt.Errorf("invalid diagnostic index: %s", indexStr)
+	}
+
+	if index >= len(diagnostics) {
+		return fmt.Errorf("diagnostic index %d out of range (have %d diagnostics)", index, len(diagnostics))
+	}
+
+	diag := diagnostics[index]
+	if len(diag.Fixes) == 0 {
+		return fmt.Errorf("diagnostic %d has no fixes", index)
+	}
+
+	var errs []error
+	for _, fix := range diag.Fixes {
+		if err := checkFixTitle(fix, expectedTitle); err != nil {
+			errs = append(errs, err)
+		} else {
+			return nil
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func applyFixAndCheck(fix *index.DiagnosticFix, diag *index.Diagnostic, content, expectedContent string) error {
+	lines := strings.Split(content, "\n")
+	if diag.StartLine < 1 || diag.StartLine > len(lines) {
+		return fmt.Errorf("diagnostic start line %d out of range", diag.StartLine)
+	}
+
+	lineIdx := diag.StartLine - 1
+	line := lines[lineIdx]
+
+	startCol := diag.StartColumn - 1
+	endCol := diag.EndColumn - 1
+	if startCol < 0 || endCol > len(line) || startCol > endCol {
+		return fmt.Errorf("invalid column range: %d-%d for line of length %d", startCol, endCol, len(line))
+	}
+
+	newLine := line[:startCol] + fix.NewText + line[endCol:]
+	lines[lineIdx] = newLine
+
+	result := strings.Join(lines, "\n")
+	if result != expectedContent {
+		return fmt.Errorf("fix %q produced:\n%s\n\nexpected:\n%s", fix.Title, result, expectedContent)
+	}
+	return nil
+}
+
+//godogen:then ^diagnostic (\d+) fix applied to (.+) produces:$
+func (tc *TestContext) CheckDiagnosticFixApplied(indexStr, path string, expected *godog.DocString) error {
+	diagnostics := tc.GetDiagnosticsResult()
+
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return fmt.Errorf("invalid diagnostic index: %s", indexStr)
+	}
+
+	if index >= len(diagnostics) {
+		return fmt.Errorf("diagnostic index %d out of range (have %d diagnostics)", index, len(diagnostics))
+	}
+
+	diag := diagnostics[index]
+	if len(diag.Fixes) == 0 {
+		return fmt.Errorf("diagnostic %d has no fixes", index)
+	}
+
+	content, err := tc.GetFileContent(path)
+	if err != nil {
+		return fmt.Errorf("failed to get file content: %w", err)
+	}
+
+	var errs []error
+	for _, fix := range diag.Fixes {
+		if err := applyFixAndCheck(fix, &diag, content, expected.Content); err != nil {
+			errs = append(errs, err)
+		} else {
+			return nil
+		}
+	}
+	return errors.Join(errs...)
 }

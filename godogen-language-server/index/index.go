@@ -5,6 +5,7 @@ package index
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -41,6 +42,20 @@ func NewIndex() *Index {
 		Features: make(map[string]*FeatureFileVersions),
 		GoFiles:  make(map[string]*GoFileVersions),
 	}
+}
+
+// AllFilePaths returns all tracked file paths (both Go and feature files).
+func (index *Index) AllFilePaths() (goPaths, featurePaths []string) {
+	index.mx.RLock()
+	defer index.mx.RUnlock()
+
+	for path := range index.GoFiles {
+		goPaths = append(goPaths, path)
+	}
+	for path := range index.Features {
+		featurePaths = append(featurePaths, path)
+	}
+	return goPaths, featurePaths
 }
 
 // GoFileVersions holds both workspace and disk versions of a Go file.
@@ -445,7 +460,7 @@ type Diagnostic struct {
 	Message            string
 	Severity           DiagnosticSeverity
 	RelatedInformation []DiagnosticRelatedInformation
-	Fix                *DiagnosticFix // Optional fix for the diagnostic
+	Fixes              []*DiagnosticFix // Optional fixes for the diagnostic
 }
 
 // GetDiagnostics returns validation errors for a Go file at the given path.
@@ -776,14 +791,20 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 			}
 
 			// Look for similar step definitions that might be what the user meant
-			if suggestion := index.findSimilarStepDefinition(kind, step); suggestion != nil {
-				// Add related info pointing to the suggested definition
-				diag.RelatedInformation = append(diag.RelatedInformation, DiagnosticRelatedInformation{
-					Path:    suggestion.path,
-					Line:    suggestion.line,
-					Column:  suggestion.column,
-					Message: fmt.Sprintf("similarly named %s step defined here", suggestion.kind),
-				})
+			suggestions := index.findSimilarStepDefinitions(kind, step)
+			if len(suggestions) > 0 {
+				// Add related info for all suggestions to the error diagnostic
+				for _, suggestion := range suggestions {
+					diag.RelatedInformation = append(diag.RelatedInformation, DiagnosticRelatedInformation{
+						Path:    suggestion.path,
+						Line:    suggestion.line,
+						Column:  suggestion.column,
+						Message: fmt.Sprintf("similarly named %s step defined here", suggestion.kind),
+					})
+				}
+
+				// Use the first (best) suggestion for the hint message
+				best := suggestions[0]
 
 				// Create a hint diagnostic for the suggestion (rust-analyzer style)
 				hintDiag := Diagnostic{
@@ -794,36 +815,44 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 					Severity:    DiagnosticSeverityHint,
 				}
 
-				if suggestion.exactMatch {
+				if best.exactMatch {
 					// Pattern matches but wrong kind - offer a fix to change keyword
 					if isConjunction(keyword) {
 						hintDiag.Message = fmt.Sprintf(
 							"A matching '%s' step exists: %s",
-							suggestion.kind, suggestion.pattern,
+							best.kind, best.pattern,
 						)
 					} else {
 						hintDiag.Message = fmt.Sprintf(
 							"A matching pattern exists but is defined as '%s': %s",
-							suggestion.kind, suggestion.pattern,
+							best.kind, best.pattern,
 						)
 					}
-					// Add fix to change the keyword
-					hintDiag.Fix = &DiagnosticFix{
-						Title:   fmt.Sprintf("Change '%s' to '%s'", keyword, suggestion.kind),
-						NewText: suggestion.kind + " ",
+					// Add fix for each exact match suggestion
+					for _, suggestion := range suggestions {
+						if suggestion.exactMatch {
+							hintDiag.Fixes = append(hintDiag.Fixes, &DiagnosticFix{
+								Title:   fmt.Sprintf("Change '%s' to '%s'", keyword, suggestion.kind),
+								NewText: suggestion.kind,
+							})
+						}
 					}
 				} else {
 					// Fuzzy match - similar pattern
 					hintDiag.Message = fmt.Sprintf(
 						"A step with a similar name exists: %s %s",
-						suggestion.kind, suggestion.pattern,
+						best.kind, best.pattern,
 					)
-					// Only offer fix if the pattern is entirely literal (no capture groups)
-					if suggestion.regexp != nil {
-						if literal, complete := suggestion.regexp.LiteralPrefix(); complete {
-							hintDiag.Fix = &DiagnosticFix{
-								Title:   fmt.Sprintf("Change to '%s %s'", keyword, literal),
-								NewText: keyword + " " + literal,
+					// Extend range to cover full step text for replacement
+					hintDiag.EndColumn = int(step.Location.Column) + len(keyword) + 1 + len(step.Text)
+					// Add fix for each fuzzy match with literal pattern
+					for _, suggestion := range suggestions {
+						if suggestion.regexp != nil {
+							if literal, complete := suggestion.regexp.LiteralPrefix(); complete {
+								hintDiag.Fixes = append(hintDiag.Fixes, &DiagnosticFix{
+									Title:   fmt.Sprintf("Change to '%s %s'", keyword, literal),
+									NewText: keyword + " " + literal,
+								})
 							}
 						}
 					}
@@ -837,9 +866,22 @@ func (index *Index) GetFeatureDiagnostics(path string) []Diagnostic {
 					Message: "original diagnostic",
 				})
 
+				// Append error first, then hint (so diagnostic 0 = error, diagnostic 1 = hint with fix)
+				// Add related info for Scenario Outline steps
+				if step.ExampleRow != nil {
+					diag.RelatedInformation = append(diag.RelatedInformation, DiagnosticRelatedInformation{
+						Path:    path,
+						Line:    int(step.ExampleRow.Location.Line),
+						Column:  int(step.ExampleRow.Location.Column),
+						Message: "for the values of this example",
+					})
+				}
+				diagnostics = append(diagnostics, diag)
 				diagnostics = append(diagnostics, hintDiag)
+				continue
 			}
 
+			// No suggestion found - just add the error diagnostic
 			// Add related info for Scenario Outline steps
 			if step.ExampleRow != nil {
 				diag.RelatedInformation = append(diag.RelatedInformation, DiagnosticRelatedInformation{
@@ -1253,11 +1295,14 @@ type stepSuggestion struct {
 	score      float64        // similarity score for fuzzy matches
 }
 
-// findSimilarStepDefinition looks for step definitions that might be what the user meant.
-// It first looks for exact regex matches with different kinds, then falls back to fuzzy matching.
+// findSimilarStepDefinitions looks for step definitions that might be what the user meant.
+// It returns all exact regex matches with different kinds, plus all fuzzy matches above threshold.
 // This method assumes the index read lock is already held by the caller.
-func (index *Index) findSimilarStepDefinition(inheritedKind string, step *Step) *stepSuggestion {
-	var bestFuzzy *stepSuggestion
+func (index *Index) findSimilarStepDefinitions(inheritedKind string, step *Step) []*stepSuggestion {
+	var exactMatches []*stepSuggestion
+	var fuzzyMatches []*stepSuggestion
+
+	const fuzzyThreshold = 0.75
 
 	for goPath, goFileVersions := range index.GoFiles {
 		goFile := goFileVersions.get()
@@ -1280,7 +1325,7 @@ func (index *Index) findSimilarStepDefinition(inheritedKind string, step *Step) 
 
 			// Check for exact regex match (only useful if different kind)
 			if !sameKind && stepDef.Regexp.MatchString(step.Text) {
-				return &stepSuggestion{
+				exactMatches = append(exactMatches, &stepSuggestion{
 					kind:       stepDef.Kind,
 					path:       goPath,
 					line:       pos.Line,
@@ -1289,13 +1334,14 @@ func (index *Index) findSimilarStepDefinition(inheritedKind string, step *Step) 
 					regexp:     stepDef.Regexp,
 					exactMatch: true,
 					score:      1.0,
-				}
+				})
+				continue
 			}
 
 			// Compute fuzzy similarity (for both same and different kinds)
 			score := patternSimilarity(stepDef.Pattern, step.Text)
-			if score >= 0.75 && (bestFuzzy == nil || score > bestFuzzy.score) {
-				bestFuzzy = &stepSuggestion{
+			if score >= fuzzyThreshold {
+				fuzzyMatches = append(fuzzyMatches, &stepSuggestion{
 					kind:       stepDef.Kind,
 					path:       goPath,
 					line:       pos.Line,
@@ -1304,12 +1350,18 @@ func (index *Index) findSimilarStepDefinition(inheritedKind string, step *Step) 
 					regexp:     stepDef.Regexp,
 					exactMatch: false,
 					score:      score,
-				}
+				})
 			}
 		}
 	}
 
-	return bestFuzzy
+	// Sort fuzzy matches by score descending
+	slices.SortFunc(fuzzyMatches, func(a, b *stepSuggestion) int {
+		return cmp.Compare(b.score, a.score) // descending
+	})
+
+	// Return exact matches first, then fuzzy matches
+	return append(exactMatches, fuzzyMatches...)
 }
 
 // patternSimilarity computes similarity between a regex pattern and step text.
