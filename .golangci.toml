@@ -1,0 +1,13 @@
+version = "2"
+
+[run]
+go = "1.24"
+
+[linters]
+enable = ["gocritic", "godot"]
+disable = [
+  "unused", # while developing
+]
+
+[linters.settings.godot]
+exclude = ["^ language=\\S+$"]
