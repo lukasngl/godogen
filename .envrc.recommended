@@ -1,0 +1,8 @@
+use flake
+
+# alias golangci-lint to ./gcl-plugin/custom-gcl if present
+if test -e ./gcl-plugin/custom-gcl; then
+    mkdir -p .direnv/bin
+    ln -srf ./gcl-plugin/custom-gcl .direnv/bin/golangci-lint
+    export PATH="$PWD/.direnv/bin:$PATH"
+fi
