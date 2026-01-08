@@ -39,8 +39,14 @@ gen: sync-version
     just _gen "godogen-language-server"
 
 sync-version:
+    #!/usr/bin/env bash
+    set -e
+    VERSION=$(cat version.txt)
     cp version.txt godogen-lint/version.txt
     cp version.txt godogen-language-server/version.txt
+    # Update Claude Code plugin versions
+    sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" .claude-plugin/plugin.json
+    sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" .claude-plugin/marketplace.json
 
 check-gen:
     ./hack/group.sh "⚡" "checking generated code" ./hack/error-on-diff.sh just gen

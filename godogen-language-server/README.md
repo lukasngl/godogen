@@ -442,21 +442,52 @@ Uses [doublestar](https://github.com/bmatcuk/doublestar) for glob pattern matchi
 
 ## Claude Code Integration
 
-A Claude Code agent configuration is available for AI-assisted BDD development. The agent can analyze your test suite, find issues, and help navigate between feature files and step definitions.
+Godogen provides a Claude Code plugin for AI-assisted BDD development, including:
 
-See [docs/claude-agent.md](docs/claude-agent.md) for the agent configuration. To use it:
+- **LSP integration**: Real-time diagnostics for `.feature` files
+- **`godogen-guide` agent**: Analyzes test suites, finds issues, navigates code
+- **`/godogen` skill**: Quick reference for syntax and CLI commands
 
-1. Copy to your global Claude agents directory:
-   ```bash
-   cp docs/claude-agent.md ~/.claude/agents/godogen-guide.md
-   ```
+### Installation via Marketplace
 
-2. Restart Claude Code to load the agent
+```bash
+# Add the godogen marketplace
+/plugin marketplace add lukasngl/godogen
 
-3. Ask Claude to analyze your BDD test suite:
-   - "Find all undefined steps in my feature files"
-   - "Which step definitions are unused?"
-   - "List all When steps in the project"
+# Install the plugin
+/plugin install godogen@lukasngl/godogen
+```
+
+### What You Get
+
+Once installed, Claude Code can:
+
+- Automatically use the godogen LSP for `.feature` files
+- Delegate BDD analysis tasks to the `godogen-guide` agent
+- Provide quick help via `/godogen` skill
+
+### Example Usage
+
+Ask Claude to analyze your BDD test suite:
+
+- "Find all undefined steps in my feature files"
+- "Which step definitions are unused?"
+- "List all When steps in the project"
+- "Navigate to the definition of 'Given I am logged in'"
+
+Or invoke the skill directly:
+
+```
+/godogen
+```
+
+### Prerequisites
+
+The plugin requires the language server to be installed:
+
+```bash
+go install github.com/lukasngl/godogen/godogen-language-server@latest
+```
 
 ## License
 
