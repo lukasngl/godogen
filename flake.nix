@@ -119,6 +119,14 @@
           };
         };
 
+        devShells.tools = pkgs.mkShell {
+          packages = [
+            self.packages.${system}.godogen
+            self.packages.${system}.godogen-lint
+            self.packages.${system}.godogen-language-server
+          ];
+        };
+
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             # Go toolchain

@@ -1,5 +1,6 @@
 {
   "name": "godogen",
+  "description": "Claude Code plugins for Godogen BDD development",
   "owner": {
     "name": "Lukas Nagl",
     "url": "https://github.com/lukasngl"
@@ -7,7 +8,7 @@
   "plugins": [
     {
       "name": "godogen",
-      "source": ".",
+      "source": "./claude-plugin",
       "description": "BDD development tools for Godogen - Gherkin/Cucumber analysis, step definition navigation, and AI-assisted BDD development",
       "version": "0.3.1",
       "category": "testing",
