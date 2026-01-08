@@ -295,6 +295,12 @@ func (index *Index) IndexWorkspaceFeatureFile(path string, content []byte) error
 		return err
 	}
 
+	// Skip files without a Feature declaration (e.g., empty files or comment-only files)
+	if document.Feature == nil {
+		slog.Debug("skipping file without Feature declaration", "component", "index", "path", path)
+		return nil
+	}
+
 	index.mx.Lock()
 	defer index.mx.Unlock()
 
@@ -329,6 +335,12 @@ func (index *Index) IndexDiskFeatureFile(path string, content []byte) error {
 	if err != nil {
 		slog.Debug("parse error", "component", "index", "path", path, "error", err)
 		return err
+	}
+
+	// Skip files without a Feature declaration (e.g., empty files or comment-only files)
+	if document.Feature == nil {
+		slog.Debug("skipping file without Feature declaration", "component", "index", "path", path)
+		return nil
 	}
 
 	index.mx.Lock()
