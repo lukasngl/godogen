@@ -60,6 +60,7 @@ func (s *Suite) iShouldSee(text string) error {
 ### Valid Return Types
 
 Step functions can return:
+
 - `error`
 - `context.Context`
 - `(context.Context, error)`
@@ -96,6 +97,7 @@ godogen-language-server diagnose --format json      # JSON output
 ```
 
 Reports:
+
 - **Undefined steps** (error): Feature steps without definitions
 - **Ambiguous steps** (warning): Steps matching multiple definitions
 - **Duplicate definitions** (error): Same pattern defined twice
@@ -148,6 +150,7 @@ godogen-language-server symbols steps/auth.go
 ### Global Flags
 
 All commands support:
+
 - `--root <dir>` - Workspace root (default: `.`)
 - `--config <file>` - Config file path
 - `--format, -f <text|json>` - Output format
@@ -189,6 +192,7 @@ fi
 ```
 
 Exit codes:
+
 - `0`: No issues at the requested severity level
 - `1`: Issues found or error running command
 

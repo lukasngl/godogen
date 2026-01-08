@@ -40,6 +40,7 @@ And I click the login button    # This is a "Given", not a "When"!
 If your step is defined as `//godogen:when`, it won't match because `And` inherits `Given`.
 
 **Solutions:**
+
 1. Use `//godogen:step` instead of specific keywords (matches all)
 2. Change the feature to use explicit keywords:
    ```gherkin
@@ -55,6 +56,7 @@ The language server reports this as a diagnostic - look for "step kind mismatch"
 When multiple step definitions match the same feature step, you'll get an "ambiguous match" warning.
 
 **Example:**
+
 ```go
 //godogen:when ^I click "([^"]*)"$
 func (s *Suite) iClick(element string) error { ... }
@@ -64,11 +66,13 @@ func (s *Suite) iClickButton(element string) error { ... }
 ```
 
 **Common causes:**
+
 - Duplicate patterns in different files
 - Overly broad patterns that overlap (e.g., `.*` matching too much)
 - Copy-paste errors when creating new steps
 
 **Solutions:**
+
 1. Remove duplicate definitions
 2. Make patterns more specific:
    ```go

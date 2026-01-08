@@ -53,6 +53,12 @@ nix run github:lukasngl/godogen#godogen-language-server
 nix run github:lukasngl/godogen#godogen-lint
 ```
 
+Use in a project via `.envrc` (with direnv):
+
+```bash
+use flake github:lukasngl/godogen#tools
+```
+
 Add to your flake inputs:
 
 ```nix
@@ -86,6 +92,7 @@ environment.systemPackages = [ inputs.godogen.packages.${system}.default ];
 ```
 
 The plugin provides:
+
 - LSP integration for `.feature` files (real-time diagnostics)
 - `godogen-guide` agent for BDD analysis
 - `/godogen` skill (this reference)

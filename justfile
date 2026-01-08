@@ -45,7 +45,7 @@ sync-version:
     cp version.txt godogen-lint/version.txt
     cp version.txt godogen-language-server/version.txt
     # Update Claude Code plugin versions
-    sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" .claude-plugin/plugin.json
+    sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" claude-plugin/.claude-plugin/plugin.json
     sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" .claude-plugin/marketplace.json
 
 check-gen:
