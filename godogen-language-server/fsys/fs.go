@@ -137,6 +137,7 @@ func getWatchDir(pattern string) string {
 
 // discoverPattern discovers files matching a specific glob pattern.
 // Supports ** for recursive directory matching.
+// Hidden directories (starting with .) are skipped unless explicitly referenced in the pattern.
 func (w *Watcher) discoverPattern(pattern string) error {
 	// Get the base directory to search from (the part before any wildcards)
 	base := getWatchDir(pattern)
@@ -149,6 +150,12 @@ func (w *Watcher) discoverPattern(pattern string) error {
 		}
 
 		if d.IsDir() {
+			// Skip hidden directories
+			if strings.HasPrefix(d.Name(), ".") && d.Name() != "." && d.Name() != ".." {
+				slog.Debug("skipping hidden directory", "component", "fsys", "path", path)
+				return filepath.SkipDir
+			}
+
 			// Add directory to watcher if not already watching
 			if !w.watchedDirs[path] {
 				if err := w.watcher.Add(path); err != nil {
@@ -166,7 +173,7 @@ func (w *Watcher) discoverPattern(pattern string) error {
 		return fmt.Errorf("failed to walk directory tree: %w", err)
 	}
 
-	// Now discover files matching the pattern
+	// Now discover files matching the pattern using GlobWalk to skip hidden directories
 	fsys := os.DirFS(base)
 
 	// Make pattern relative to base for doublestar matching
@@ -175,42 +182,41 @@ func (w *Watcher) discoverPattern(pattern string) error {
 		relPattern = pattern
 	}
 
-	matches, err := doublestar.Glob(fsys, relPattern)
+	var matchCount int
+	err = doublestar.GlobWalk(fsys, relPattern, func(relMatch string, d fs.DirEntry) error {
+		if d.IsDir() {
+			return nil
+		}
+
+		match := filepath.Join(base, relMatch)
+
+		// Regular file - check if it's a .go or .feature file
+		ext := filepath.Ext(match)
+		if ext == ".go" || ext == ".feature" {
+			matchCount++
+			content, err := os.ReadFile(match)
+			if err != nil {
+				slog.Error("failed to read file", "component", "fsys", "path", match, "error", err)
+				return nil
+			}
+			if err := w.onFileChanged(match, content); err != nil {
+				slog.Error("failed to index file", "component", "fsys", "path", match, "error", err)
+			}
+		}
+
+		return nil
+	}, doublestar.WithNoHidden())
 	if err != nil {
 		return fmt.Errorf("invalid glob pattern %q: %w", pattern, err)
 	}
 
-	slog.Debug("pattern matched", "component", "fsys", "pattern", pattern, "count", len(matches))
-
-	for _, relMatch := range matches {
-		match := filepath.Join(base, relMatch)
-
-		info, err := os.Stat(match)
-		if err != nil {
-			slog.Debug("failed to stat file", "component", "fsys", "path", match, "error", err)
-			continue
-		}
-
-		if !info.IsDir() {
-			// Regular file - check if it's a .go or .feature file
-			ext := filepath.Ext(match)
-			if ext == ".go" || ext == ".feature" {
-				content, err := os.ReadFile(match)
-				if err != nil {
-					slog.Error("failed to read file", "component", "fsys", "path", match, "error", err)
-					continue
-				}
-				if err := w.onFileChanged(match, content); err != nil {
-					slog.Error("failed to index file", "component", "fsys", "path", match, "error", err)
-				}
-			}
-		}
-	}
+	slog.Debug("pattern matched", "component", "fsys", "pattern", pattern, "count", matchCount)
 
 	return nil
 }
 
 // discover walks the directory and indexes all existing files.
+// Hidden directories (starting with .) are skipped.
 func (w *Watcher) discover(root string) error {
 	fsys, err := os.OpenRoot(root)
 	if err != nil {
@@ -222,7 +228,17 @@ func (w *Watcher) discover(root string) error {
 			return fmt.Errorf("failed to walk workspace root: %w", err)
 		}
 
+		// Skip hidden directories
+		if d.IsDir() && strings.HasPrefix(d.Name(), ".") && d.Name() != "." && d.Name() != ".." {
+			return filepath.SkipDir
+		}
+
 		if !d.Type().IsRegular() {
+			return nil
+		}
+
+		// Skip hidden files
+		if strings.HasPrefix(d.Name(), ".") {
 			return nil
 		}
 
@@ -258,8 +274,12 @@ func (w *Watcher) watch(ctx context.Context) {
 
 			fileinfo, err := os.Stat(event.Name)
 
-			// Handle directory creation
+			// Handle directory creation (skip hidden directories)
 			if err == nil && fileinfo.IsDir() && event.Has(fsnotify.Create) {
+				if strings.HasPrefix(filepath.Base(event.Name), ".") {
+					slog.Debug("skipping hidden directory", "component", "fsys", "path", event.Name)
+					continue
+				}
 				slog.Debug("directory created", "component", "fsys", "path", event.Name)
 				w.handleNewDirectory(event.Name)
 				continue
@@ -272,6 +292,12 @@ func (w *Watcher) watch(ctx context.Context) {
 
 			deleted := os.IsNotExist(err) || event.Has(fsnotify.Remove) ||
 				event.Has(fsnotify.Rename)
+
+			// Skip hidden files
+			baseName := filepath.Base(event.Name)
+			if strings.HasPrefix(baseName, ".") {
+				continue
+			}
 
 			ext := filepath.Ext(event.Name)
 			if ext != ".go" && ext != ".feature" {
@@ -311,6 +337,7 @@ func (w *Watcher) watch(ctx context.Context) {
 
 // handleNewDirectory handles a newly created directory by adding it and its subdirectories
 // to the watcher, and discovering any files that match our patterns.
+// Hidden directories (starting with .) are skipped.
 func (w *Watcher) handleNewDirectory(dirPath string) {
 	// Walk the new directory tree and add all directories to the watcher
 	_ = filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
@@ -320,6 +347,12 @@ func (w *Watcher) handleNewDirectory(dirPath string) {
 		}
 
 		if d.IsDir() {
+			// Skip hidden directories
+			if strings.HasPrefix(d.Name(), ".") {
+				slog.Debug("skipping hidden directory", "component", "fsys", "path", path)
+				return filepath.SkipDir
+			}
+
 			// Add directory to watcher
 			if !w.watchedDirs[path] {
 				if err := w.watcher.Add(path); err != nil {
@@ -330,6 +363,11 @@ func (w *Watcher) handleNewDirectory(dirPath string) {
 				}
 			}
 		} else if d.Type().IsRegular() {
+			// Skip hidden files
+			if strings.HasPrefix(d.Name(), ".") {
+				return nil
+			}
+
 			// Check if file matches any of our patterns and has correct extension
 			ext := filepath.Ext(path)
 			if ext == ".go" || ext == ".feature" {

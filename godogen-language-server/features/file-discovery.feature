@@ -101,6 +101,47 @@ Feature: File Discovery and Watching
       When file "test_steps.go" is deleted
       Then "test_steps.go" should be removed from index
 
+  Rule: Skip hidden files and directories
+
+    Scenario: Hidden directories are not watched
+      Given we watch pattern "**/*_steps.go"
+      And directory ".git" exists
+      And directory ".vscode" exists
+      And directory "src" exists
+      When discovery runs
+      Then directory ".git" should not be watched
+      And directory ".vscode" should not be watched
+      And directory "src" should be watched
+
+    Scenario: Files in hidden directories are not indexed
+      Given we watch pattern "**/*_steps.go"
+      And file ".git/hooks/pre-commit_steps.go" exists
+      And file "src/test_steps.go" exists
+      When discovery runs
+      Then ".git/hooks/pre-commit_steps.go" should not be indexed
+      And "src/test_steps.go" should be indexed
+
+    Scenario: Hidden files are not indexed
+      Given we watch pattern "**/*.go"
+      And file ".hidden.go" exists
+      And file "visible.go" exists
+      When discovery runs
+      Then ".hidden.go" should not be indexed
+      And "visible.go" should be indexed
+
+    Scenario: New hidden directory is not watched
+      Given we watch pattern "**/*_steps.go"
+      And discovery has run
+      When directory ".cache" is created
+      Then directory ".cache" should not be watched
+
+    Scenario: New file in hidden directory is not indexed
+      Given we watch pattern "**/*_steps.go"
+      And directory ".hidden" exists
+      And discovery has run
+      When file ".hidden/test_steps.go" is created
+      Then ".hidden/test_steps.go" should not be indexed
+
   Rule: Multiple patterns
 
     Scenario: Files matching any pattern are indexed

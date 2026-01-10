@@ -75,7 +75,7 @@
             version = builtins.readFile ./godogen-language-server/version.txt;
             src = godogenLanguageServerSrc;
             modRoot = "godogen-language-server";
-            vendorHash = "sha256-NnMPUpuSZ5J2kN2U0dmgt9ehO9eO4ZzKjNh50/9iBXQ=";
+            vendorHash = "sha256-VutZYd0NAlwTlSOzdV+x87riRg7j9ImvV0NGuDFFwgI=";
             ldflags = [
               "-s"
               "-w"

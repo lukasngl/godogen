@@ -4,6 +4,8 @@ go 1.25.1
 
 replace github.com/lukasngl/godogen => ../
 
+replace github.com/bmatcuk/doublestar/v4 => github.com/lukasngl/doublestar/v4 v4.9.2-nohidden
+
 require (
 	github.com/bmatcuk/doublestar/v4 v4.9.1
 	github.com/cucumber/gherkin/go/v36 v36.0.0
