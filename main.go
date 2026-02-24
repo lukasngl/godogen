@@ -94,9 +94,9 @@ package {{.Package}}
 import "github.com/cucumber/godog"
 
 // Initialize{{.Name}} registers steps defined in "{{ .Filepath }}" with the [godog.ScenarioContext].
-func Initialize{{.Name}}(sc *godog.ScenarioContext
+func Initialize{{.Name}}{{.TypeParamsList}}(sc *godog.ScenarioContext
 {{- range .StepFuncs.Receivers -}}
-	, {{ receiverName . }} {{.TypeName}}
+	, {{ receiverName . }} {{ receiverTypeName . }}
 {{- end -}}
 ) {
 	// DO NOT EDIT, instead edit the "//godogen:step <PATTERN>" directive
@@ -120,10 +120,11 @@ func Initialize{{.Name}}(sc *godog.ScenarioContext
 `
 
 type File struct {
-	Filepath  string
-	Package   string
-	Name      string
-	StepFuncs godogen.StepFuncs
+	Filepath       string
+	Package        string
+	Name           string
+	StepFuncs      godogen.StepFuncs
+	TypeParamsList string // e.g., "[T1 any, T2 comparable]" or ""
 }
 
 func main() {
@@ -230,11 +231,15 @@ func genFile(fset *token.FileSet, path string, input *ast.File) error {
 		fmt.Println(prettyPrintValidationErr(fset, err))
 	}
 
+	// compute type param renaming (T→T1, U→T2, etc.) and rewritten receiver types
+	typeParamsList, receiverTypeNames := buildTypeParamInfo(stepFuncs)
+
 	file := &File{
-		Filepath:  path,
-		Package:   input.Name.Name,
-		Name:      toCamel(slug),
-		StepFuncs: stepFuncs,
+		Filepath:       path,
+		Package:        input.Name.Name,
+		Name:           toCamel(slug),
+		StepFuncs:      stepFuncs,
+		TypeParamsList: typeParamsList,
 	}
 
 	outfile, err := os.Create(slug + *outputSuffix)
@@ -265,6 +270,12 @@ func genFile(fset *token.FileSet, path string, input *ast.File) error {
 			return f.Function
 		},
 		"receiverName": receiverName,
+		"receiverTypeName": func(r *godogen.Receiver) string {
+			if rewritten, ok := receiverTypeNames[r.TypeName]; ok {
+				return rewritten
+			}
+			return r.TypeName
+		},
 	}).Parse(initializerTpl))
 
 	err = tmpl.Execute(outfile, file)
@@ -278,6 +289,45 @@ func genFile(fset *token.FileSet, path string, input *ast.File) error {
 	)
 
 	return nil
+}
+
+// buildTypeParamInfo computes the type parameter clause and rewritten receiver type names.
+// Type params are renamed to T1, T2, T3... to avoid collisions across receivers.
+// Returns the clause string (e.g., "[T1 any, T2 comparable]" or "") and a map
+// from original receiver TypeName to the rewritten TypeName with renamed params.
+func buildTypeParamInfo(stepFuncs godogen.StepFuncs) (string, map[string]string) {
+	var clauseParts []string
+	receiverTypeNames := map[string]string{}
+	idx := 1
+
+	for recv := range stepFuncs.Receivers() {
+		if len(recv.TypeParams) == 0 {
+			continue
+		}
+
+		// build renamed params for this receiver
+		var renamedArgs []string
+		for _, tp := range recv.TypeParams {
+			newName := fmt.Sprintf("T%d", idx)
+			idx++
+			clauseParts = append(clauseParts, newName+" "+tp.Constraint)
+			renamedArgs = append(renamedArgs, newName)
+		}
+
+		// rewrite the receiver type name with renamed params
+		// e.g., "*ScState[T]" → "*ScState[T1]", "*ScState[K, V]" → "*ScState[T2, T3]"
+		typeName := recv.TypeName
+		if bracketIdx := strings.Index(typeName, "["); bracketIdx != -1 {
+			base := typeName[:bracketIdx]
+			receiverTypeNames[typeName] = base + "[" + strings.Join(renamedArgs, ", ") + "]"
+		}
+	}
+
+	if len(clauseParts) == 0 {
+		return "", receiverTypeNames
+	}
+
+	return "[" + strings.Join(clauseParts, ", ") + "]", receiverTypeNames
 }
 
 // escapeBackticks escapes backticks in the generated go code.

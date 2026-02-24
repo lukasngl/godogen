@@ -105,6 +105,34 @@ func InitializeGodogSteps(ctx *godog.ScenarioContext, r1 *GodogsState) {
 }
 ```
 
+### Generic Receivers
+
+godogen supports generic context structs. Type parameters are propagated to the generated initializer function and renamed to `T1`, `T2`, ... to avoid collisions:
+
+```go
+type Suite[T any] struct{ state T }
+
+//godogen:given ^I have (\d+) items$
+func (s *Suite[T]) iHaveItems(count int) error {
+    return nil
+}
+```
+
+generates:
+
+```go
+func InitializeSteps[T1 any](sc *godog.ScenarioContext, r1 *Suite[T1]) {
+    sc.Given(`^I have (\d+) items$`, r1.iHaveItems)
+}
+```
+
+The type declaration must be in the same file as the methods. For types declared elsewhere, use a type alias:
+
+```go
+type MyConstraint = otherpackage.Constraint
+type Suite[T MyConstraint] struct{ state T }
+```
+
 ## Features
 
 - colocate step definition (i.e. the function or method declaration) with the pattern,
@@ -119,7 +147,7 @@ func InitializeGodogSteps(ctx *godog.ScenarioContext, r1 *GodogsState) {
   - `//godogen:before_step` will generate `ctx.StepContext().Before(<FUNCTION>)`
 - methods on any type are supported as step definitions
 - receiver instances are passed as parameters to the generated `InitializeGodogSteps` function
-- generic methods are not yet supported
+- generic receiver types are supported — type parameters are propagated to the generated initializer function
 
 ## Linting
 

@@ -57,6 +57,23 @@ func (s *Suite) iShouldSee(text string) error {
 - Use `(\d+)` for integer captures
 - Escape special characters: `\.`, `\(`, `\)`, etc.
 
+### Generic Receivers
+
+Generic context structs are supported. Type parameters are propagated to the generated initializer and renamed to `T1`, `T2`, ... to avoid collisions:
+
+```go
+type Suite[T any] struct{ state T }
+
+//godogen:given ^I have (\d+) items$
+func (s *Suite[T]) iHaveItems(count int) error {
+    return nil
+}
+```
+
+generates `func InitializeSteps[T1 any](sc *godog.ScenarioContext, r1 *Suite[T1])`.
+
+The type declaration must be in the same file as the methods. For types declared elsewhere, use a type alias.
+
 ### Valid Return Types
 
 Step functions can return:

@@ -72,23 +72,41 @@ type (
 		End     token.Pos
 		NewText []byte
 	}
+	// TypeParam represents a single type parameter with its constraint.
+	TypeParam struct {
+		Name       string // original name from type decl, e.g., "T"
+		Constraint string // e.g., "any", "comparable"
+	}
 	Receiver struct {
 		// Node is the AST node where the error occurred.
 		ast.Node
-		//
+		// Type is the AST expression for the receiver type.
 		Type     ast.Expr
 		TypeName string
+		// TypeParams holds the generic type parameters from the type declaration.
+		// Empty if the receiver is not generic or the type declaration was not found.
+		TypeParams []TypeParam
 	}
 )
 
 // GetStepDefinitions returns all step definitions found in the given file.
 func GetStepDefinitions(fset *token.FileSet, file *ast.File) StepFuncs {
-	visitor := &fileVisitor{fset: fset}
+	visitor := &fileVisitor{
+		fset:      fset,
+		typeDecls: make(map[string]*ast.FieldList),
+	}
 
 	ast.Inspect(file, func(node ast.Node) bool {
 		switch node := node.(type) {
 		case nil:
 			return false
+		case *ast.GenDecl:
+			// collect generic type declarations for receiver type param resolution
+			for _, spec := range node.Specs {
+				if ts, ok := spec.(*ast.TypeSpec); ok && ts.TypeParams != nil {
+					visitor.typeDecls[ts.Name.Name] = ts.TypeParams
+				}
+			}
 		case *ast.FuncDecl:
 			visitor.stepsFuncs = append(visitor.stepsFuncs, visitor.visitFuncDecl(node)...)
 		}
@@ -110,6 +128,8 @@ type fileVisitor struct {
 	stepsFuncs StepFuncs
 	// For resolving token locations
 	fset *token.FileSet
+	// typeDecls maps type names to their type parameter field lists (generics only).
+	typeDecls map[string]*ast.FieldList
 }
 
 func (visitor *fileVisitor) visitFuncDecl(funcdecl *ast.FuncDecl) []StepFunc {
@@ -140,12 +160,46 @@ func (visitor *fileVisitor) maybeGetReceiver(funcdecl *ast.FuncDecl) *Receiver {
 	}
 
 	t := funcdecl.Recv.List[0].Type
+	typeName := exprToString(visitor.fset, t)
 
-	return &Receiver{
+	recv := &Receiver{
 		Node:     funcdecl.Recv,
 		Type:     t,
-		TypeName: exprToString(visitor.fset, t),
+		TypeName: typeName,
 	}
+
+	// resolve type params from the type declaration
+	baseName := extractBaseTypeName(typeName)
+	if fields, ok := visitor.typeDecls[baseName]; ok {
+		recv.TypeParams = fieldListToTypeParams(visitor.fset, fields)
+	}
+
+	return recv
+}
+
+// extractBaseTypeName extracts the base type name from a receiver type string.
+// E.g., "*ScState[T]" → "ScState", "ScState[K, V]" → "ScState", "*ScState" → "ScState".
+func extractBaseTypeName(typeName string) string {
+	typeName = strings.TrimPrefix(typeName, "*")
+	if idx := strings.Index(typeName, "["); idx != -1 {
+		typeName = typeName[:idx]
+	}
+	return typeName
+}
+
+// fieldListToTypeParams converts an AST field list of type parameters to a slice of TypeParam.
+func fieldListToTypeParams(fset *token.FileSet, fields *ast.FieldList) []TypeParam {
+	var params []TypeParam
+	for _, field := range fields.List {
+		constraint := exprToString(fset, field.Type)
+		for _, name := range field.Names {
+			params = append(params, TypeParam{
+				Name:       name.Name,
+				Constraint: constraint,
+			})
+		}
+	}
+	return params
 }
 
 func (visitor *fileVisitor) visitComment(
