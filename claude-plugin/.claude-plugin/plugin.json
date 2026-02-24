@@ -1,0 +1,22 @@
+{
+  "name": "godogen",
+  "version": "0.3.1",
+  "description": "BDD development tools for Godogen - analyze Gherkin feature files and Go step definitions",
+  "author": {
+    "name": "Lukas Nagl",
+    "url": "https://github.com/lukasngl"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/lukasngl/godogen",
+  "homepage": "https://github.com/lukasngl/godogen/tree/main/godogen-language-server",
+  "keywords": ["bdd", "gherkin", "cucumber", "godog", "testing", "go"],
+  "lspServers": {
+    "godogen": {
+      "command": "godogen-language-server",
+      "args": ["stdio"],
+      "extensionToLanguage": {
+        ".feature": "gherkin"
+      }
+    }
+  }
+}
