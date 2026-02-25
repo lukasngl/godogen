@@ -119,6 +119,15 @@
           };
         };
 
+        # Re-export packages as checks so `nix flake check` builds them all
+        checks = {
+          inherit (self.packages.${system})
+            godogen
+            godogen-language-server
+            godogen-lint
+            ;
+        };
+
         devShells.tools = pkgs.mkShell {
           packages = [
             self.packages.${system}.godogen
