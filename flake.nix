@@ -75,7 +75,7 @@
             version = builtins.readFile ./godogen-language-server/version.txt;
             src = godogenLanguageServerSrc;
             modRoot = "godogen-language-server";
-            vendorHash = "sha256-VutZYd0NAlwTlSOzdV+x87riRg7j9ImvV0NGuDFFwgI=";
+            vendorHash = "sha256-BwfqglO61HUY8WqaEJpnpKZ4kQ7dhIzC0I0OQRcYvsg=";
             ldflags = [
               "-s"
               "-w"
@@ -94,7 +94,7 @@
             version = builtins.readFile ./godogen-lint/version.txt;
             src = godogenLintSrc;
             modRoot = "godogen-lint";
-            vendorHash = "sha256-X0xUeCcvdGtfGb7W8VKDmF6oHZElerhPWOd13UkudOk=";
+            vendorHash = "sha256-XnSyGjfFSurCoYs8o1xCrSwEpEf9dAyl9Y8OKjL4ybM=";
             ldflags = [
               "-s"
               "-w"
@@ -117,6 +117,15 @@
               self.packages.${system}.godogen-language-server
             ];
           };
+        };
+
+        # Re-export packages as checks so `nix flake check` builds them all
+        checks = {
+          inherit (self.packages.${system})
+            godogen
+            godogen-language-server
+            godogen-lint
+            ;
         };
 
         devShells.tools = pkgs.mkShell {
