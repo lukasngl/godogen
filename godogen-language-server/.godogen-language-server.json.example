@@ -1,0 +1,6 @@
+{
+  "stepPatterns": [
+    "**/*_steps.go",
+    "**/*.feature"
+  ]
+}

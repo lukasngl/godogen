@@ -1,0 +1,139 @@
+name: code-quality
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check formatting
+        run: nix develop -c just check-fmt
+
+  gen:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check generated code
+        run: nix develop -c just check-gen
+
+  tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check go mod tidy
+        run: nix develop -c just check-tidy
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run golangci-lint
+        run: nix develop -c just lint
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build all tools
+        run: nix develop -c just build
+
+  nix-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build all Nix packages
+        run: nix flake check
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run tests
+        run: nix develop -c just test
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/*.out
+
+  code-quality-check:
+    runs-on: ubuntu-latest
+    needs: ["fmt", "gen", "tidy", "lint", "build", "nix-build", "test"]
+    if: always()
+    steps:
+      - name: Check fmt
+        if: ${{ needs.fmt.result == 'failure' }}
+        shell: sh
+        run: exit 1
+      - name: Check gen
+        if: ${{ needs.gen.result == 'failure' }}
+        shell: sh
+        run: exit 1
+      - name: Check tidy
+        if: ${{ needs.tidy.result == 'failure' }}
+        shell: sh
+        run: exit 1
+      - name: Check lint
+        if: ${{ needs.lint.result == 'failure' }}
+        shell: sh
+        run: exit 1
+      - name: Check build
+        if: ${{ needs.build.result == 'failure' }}
+        shell: sh
+        run: exit 1
+      - name: Check nix-build
+        if: ${{ needs.nix-build.result == 'failure' }}
+        shell: sh
+        run: exit 1
+      - name: Check test
+        if: ${{ needs.test.result == 'failure' }}
+        shell: sh
+        run: exit 1

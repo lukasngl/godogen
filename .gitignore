@@ -1,0 +1,14 @@
+.direnv
+.envrc
+.claude
+.go
+/coverage
+/testdata
+result
+
+# Binaries
+/dist
+/godogen
+/godogen-gcl/custom-gcl
+/godogen-language-server/godogen-language-server
+/godogen-lint/godogen-lint
