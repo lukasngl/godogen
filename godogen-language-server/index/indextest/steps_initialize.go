@@ -11,6 +11,7 @@ func InitializeSteps(sc *godog.ScenarioContext, r1 *TestContext) {
 	//
 	// Note: there must be no space between the "//" and the "godogen:step",
 	// see "directive comment" in https://tip.golang.org/doc/comment#syntax
+	sc.Given(`^the workspace root is (.+)$`, r1.SetWorkspaceRoot)
 	sc.Given(`^(.+) is added to the workspace:$`, r1.AddFileToWorkspace)
 	sc.Given(`^(.+) is added to the filesystem:$`, r1.AddFileToFilesystem)
 	sc.When(`^I request step definitions for (.+) line (\d+)$`, r1.RequestStepDefinitions)
