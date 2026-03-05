@@ -31,6 +31,11 @@ import (
 type Index struct {
 	mx sync.RWMutex
 
+	// WorkspaceRoot is the root directory of the workspace. Files outside this
+	// directory are considered external (e.g. shared step libraries) and will
+	// not receive unused-step hints.
+	WorkspaceRoot string
+
 	Features map[string]*FeatureFileVersions
 	GoFiles  map[string]*GoFileVersions
 }
@@ -523,9 +528,12 @@ func (index *Index) GetDiagnostics(path string) []Diagnostic {
 	}
 
 	// Check for unused step definitions (only if there are feature files to use them)
-	// Skip this check if there are no feature files at all
+	// Skip this check if there are no feature files at all.
+	// Also skip for files outside the workspace root — these are external/library
+	// steps whose full usage across all consumers cannot be determined.
 	hasFeatureFiles := len(index.Features) > 0
-	if hasFeatureFiles {
+	isExternal := index.WorkspaceRoot != "" && !strings.HasPrefix(path, index.WorkspaceRoot+string(filepath.Separator)) && path != index.WorkspaceRoot
+	if hasFeatureFiles && !isExternal {
 		for _, stepFunc := range goFile.StepFuncs {
 			for _, stepDef := range stepFunc.Steps {
 				// Skip invalid patterns - they already have validation errors

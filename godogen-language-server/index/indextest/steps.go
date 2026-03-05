@@ -13,6 +13,12 @@ import (
 	"github.com/lukasngl/godogen/godogen-language-server/index"
 )
 
+//godogen:given ^the workspace root is (.+)$
+func (tc *TestContext) SetWorkspaceRoot(root string) error {
+	tc.index.WorkspaceRoot = root
+	return nil
+}
+
 //godogen:given ^(.+) is added to the workspace:$
 func (tc *TestContext) AddFileToWorkspace(path string, content *godog.DocString) error {
 	return tc.addFileToWorkspace(path, content.Content)

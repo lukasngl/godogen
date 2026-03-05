@@ -210,6 +210,8 @@ func (srv *Server) initialize(
 		return nil, fmt.Errorf("root URI is not a file path: %s", *params.RootURI)
 	}
 
+	srv.index.WorkspaceRoot = path
+
 	// Load configuration with precedence: LSP options > config file > defaults
 	config := loadConfig(path, params.InitializationOptions)
 

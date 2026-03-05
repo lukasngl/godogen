@@ -37,6 +37,7 @@ func LoadWorkspace(root, configPath string) (*Workspace, error) {
 
 	// Create index
 	idx := index.NewIndex()
+	idx.WorkspaceRoot = absRoot
 
 	// Discover and index files
 	if err := discoverFiles(absRoot, config.StepPatterns, idx); err != nil {

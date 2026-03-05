@@ -95,6 +95,51 @@ Feature: Unused Step Definitions
         func IHaveFruits(count int) {}
         """
 
+  Rule: External step definitions do not receive unused hints
+
+    Steps defined in files outside the workspace root are considered external
+    library code. Their usage cannot be fully determined, so unused hints
+    are suppressed for them.
+
+    Scenario: Step definition outside workspace root is not flagged as unused
+      Given the workspace root is /project
+      And /project/test.feature is added to the workspace:
+        """
+        Feature: Test
+          Scenario: Simple test
+            Given I have 5 cukes
+        """
+      Then /shared/lib/steps.go has the following diagnostics:
+        """go
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+
+        //godogen:given ^I have (\d+) melons$
+        func IHaveMelons(count int) {}
+        """
+
+    Scenario: Step definition inside workspace root is still flagged as unused
+      Given the workspace root is /project
+      And /project/test.feature is added to the workspace:
+        """
+        Feature: Test
+          Scenario: Simple test
+            Given I have 5 cukes
+        """
+      Then /project/steps.go has the following diagnostics:
+        """go
+        package steps
+
+        //godogen:given ^I have (\d+) cukes$
+        func IHaveCukes(count int) {}
+
+        //godogen:given ^I have (\d+) melons$
+        ^ HINT: Step definition is not used
+        func IHaveMelons(count int) {}
+        """
+
   Rule: Invalid patterns are not checked for usage
 
     Scenario: Invalid regex pattern is not checked
