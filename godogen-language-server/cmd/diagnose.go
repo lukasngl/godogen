@@ -55,10 +55,12 @@ type diagnoseResult struct {
 }
 
 type diagnoseSummary struct {
-	Errors   int `json:"errors"`
-	Warnings int `json:"warnings"`
-	Hints    int `json:"hints"`
-	Total    int `json:"total"`
+	Errors               int `json:"errors"`
+	Warnings             int `json:"warnings"`
+	Hints                int `json:"hints"`
+	Total                int `json:"total"`
+	AffectedFeatureFiles int `json:"affectedFeatureFiles"`
+	TotalFeatureFiles    int `json:"totalFeatureFiles"`
 }
 
 func runDiagnose(_ *cobra.Command, _ []string) error {
@@ -114,7 +116,10 @@ func runDiagnose(_ *cobra.Command, _ []string) error {
 	})
 
 	// Calculate summary
-	summary := diagnoseSummary{}
+	summary := diagnoseSummary{
+		TotalFeatureFiles: len(ws.AllFeatureFiles()),
+	}
+	affectedFiles := make(map[string]struct{})
 	for _, d := range diagnostics {
 		switch d.Severity {
 		case "error":
@@ -125,7 +130,12 @@ func runDiagnose(_ *cobra.Command, _ []string) error {
 			summary.Hints++
 		}
 		summary.Total++
+
+		if strings.HasSuffix(d.File, ".feature") {
+			affectedFiles[d.File] = struct{}{}
+		}
 	}
+	summary.AffectedFeatureFiles = len(affectedFiles)
 
 	result := diagnoseResult{
 		Diagnostics: diagnostics,
@@ -185,13 +195,14 @@ func outputDiagnoseText(result diagnoseResult) error {
 	for _, d := range result.Diagnostics {
 		fmt.Printf("%s:%d:%d: %s: %s\n", d.File, d.Line, d.Column, d.Severity, d.Message)
 		for _, rel := range d.RelatedInfo {
-			fmt.Printf("  -> %s:%d:%d: %s\n", rel.File, rel.Line, rel.Column, rel.Message)
+			fmt.Printf("  %s:%d:%d: note: %s\n", rel.File, rel.Line, rel.Column, rel.Message)
 		}
 	}
 
 	if result.Summary.Total > 0 {
-		fmt.Printf("\nSummary: %d errors, %d warnings, %d hints\n",
-			result.Summary.Errors, result.Summary.Warnings, result.Summary.Hints)
+		fmt.Printf("\nSummary: %d errors, %d warnings, %d hints in %d/%d feature files\n",
+			result.Summary.Errors, result.Summary.Warnings, result.Summary.Hints,
+			result.Summary.AffectedFeatureFiles, result.Summary.TotalFeatureFiles)
 	} else {
 		fmt.Println("No diagnostics found.")
 	}

@@ -20,7 +20,7 @@ Feature: Unused Step Definitions
         func IHaveCukes(count int) {}
 
         //godogen:given ^I have (\d+) melons$
-        ^ HINT: Step definition is not used
+        ^ HINT: Step definition is not used in any feature file: Given ^I have (\d+) melons$
         func IHaveMelons(count int) {}
         """
 
@@ -55,7 +55,7 @@ Feature: Unused Step Definitions
         package steps
 
         //godogen:given ^I have (\d+) cukes$
-        ^ HINT: Step definition is not used
+        ^ HINT: Step definition is not used in any feature file: Given ^I have (\d+) cukes$
         func IHaveCukes(count int) {}
         """
 
@@ -91,7 +91,7 @@ Feature: Unused Step Definitions
 
         //godogen:given ^I have (\d+) cukes$
         //godogen:given ^I have (\d+) melons$
-        ^ HINT: Step definition is not used
+        ^ HINT: Step definition is not used in any feature file: Given ^I have (\d+) melons$
         func IHaveFruits(count int) {}
         """
 
@@ -136,7 +136,7 @@ Feature: Unused Step Definitions
         func IHaveCukes(count int) {}
 
         //godogen:given ^I have (\d+) melons$
-        ^ HINT: Step definition is not used
+        ^ HINT: Step definition is not used in any feature file: Given ^I have (\d+) melons$
         func IHaveMelons(count int) {}
         """
 
