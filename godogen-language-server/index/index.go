@@ -560,7 +560,7 @@ func (index *Index) GetDiagnostics(path string) []Diagnostic {
 					StartColumn: start.Column,
 					EndLine:     end.Line,
 					EndColumn:   end.Column,
-					Message:     "Step definition is not used in any feature file",
+					Message:     fmt.Sprintf("Step definition is not used in any feature file: %s %s", stepDef.Kind, stepDef.Pattern),
 					Severity:    DiagnosticSeverityHint,
 				})
 			}
